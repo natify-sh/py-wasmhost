@@ -34,6 +34,7 @@ from typing import Any, Protocol
 
 from fusedwasi.p1 import wasi_p1, wasi_p1_unstable
 from fusedwasi.p1.wasi_p1_core import E_PIPE, Exit, State, WasiError, errno_of
+from fusedwasi.p2.wasi_p2_core import Host
 
 from .._api import Instance, Module
 from .._binary import i32, i64
@@ -266,6 +267,7 @@ class Preview1:
     ) -> None:
         self.args = [str(a) for a in args]
         self.env = [f"{k}={v}" for k, v in (env or {}).items()]
+        variables = [(str(k), str(v)) for k, v in (env or {}).items()]
         self._stdin = _Source(stdin)
         self._stdout = _sink(stdout, lambda: sys.stdout)
         self._stderr = _sink(stderr, lambda: sys.stderr)
@@ -286,8 +288,9 @@ class Preview1:
         self._current: Any = None  # the memory as the call in progress sees it: a view, where the engine can give one
         self._state = State(
             self._memory_of_the_call,
-            args=self.args,
-            env=self.env,
+            core=Host(
+                args=self.args, env=variables
+            ),  # the state of WASI 0.2 that the calls of 0.1 are over: arguments, environment, clocks, random bytes
             preopens=directories,
             stdin_read=self._read_stdin,
             stdout_write=self._write_stdout,
