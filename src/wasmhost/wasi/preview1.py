@@ -33,8 +33,9 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, Protocol
 
 from fusedwasi.p1 import wasi_p1, wasi_p1_unstable
-from fusedwasi.p1.wasi_p1_core import E_PIPE, Exit, State, WasiError, errno_of
+from fusedwasi.p1.wasi_p1_core import Exit, State
 from fusedwasi.p2.wasi_p2_core import Host
+from fusedwasi.p2.wasi_p2_io import InputStream, OutputStream, StreamClosed, StreamFailed
 
 from .._api import Instance, Module
 from .._binary import i32, i64
@@ -239,8 +240,38 @@ def _sink(target: Callable[[bytes], object] | Any | None, fallback: Any) -> Call
     return target.write
 
 
-def _host_error(caught: OSError) -> WasiError:
-    return WasiError(errno_of(caught.errno))
+class _Stdin(InputStream):
+    """Standard input as a stream of the state of 0.2: an empty read is the end of the input."""
+
+    def __init__(self, source: _Source) -> None:
+        self.source = source
+
+    def read(self, n: int) -> bytes:
+        try:
+            data = self.source.read(n)
+        except OSError as caught:
+            raise StreamFailed(str(caught), errno=caught.errno) from None
+        if not data and n:
+            raise StreamClosed
+        return data
+
+
+class _Stdout(OutputStream):
+    """Standard output or error as a stream of the state of 0.2."""
+
+    def __init__(self, sink: Callable[[bytes], object]) -> None:
+        self.sink = sink
+
+    def check_write(self) -> int:
+        return 4096
+
+    def write(self, data: bytes) -> None:
+        try:
+            self.sink(data)
+        except BrokenPipeError:  # a sink may raise it bare, without an errno
+            raise StreamClosed from None
+        except OSError as caught:
+            raise StreamFailed(str(caught), errno=caught.errno) from None
 
 
 class Preview1:
@@ -288,12 +319,14 @@ class Preview1:
         self._current: Any = None  # the memory as the call in progress sees it: a view, where the engine can give one
         self._state = State(
             self._memory_of_the_call,
-            core=Host(
-                args=self.args, env=variables
-            ),  # the state of WASI 0.2 that the calls of 0.1 are over: arguments, environment, clocks, random bytes
+            core=Host(  # the state of WASI 0.2 that the calls of 0.1 are over
+                args=self.args,
+                env=variables,
+                stdin=_Stdin(self._stdin),
+                stdout=_Stdout(self._stdout),
+                stderr=_Stdout(self._stderr),
+            ),
             preopens=directories,
-            stdin_read=self._read_stdin,
-            stdout_write=self._write_stdout,
         )
 
     # --- running
@@ -359,20 +392,6 @@ class Preview1:
         if self.memory is None:
             raise RuntimeError("the program has no memory yet: bind(instance) first")
         return self._current if self._current is not None else self.memory
-
-    def _read_stdin(self, capacity: int) -> bytes:
-        try:
-            return self._stdin.read(capacity)
-        except OSError as caught:
-            raise _host_error(caught) from None
-
-    def _write_stdout(self, fd: int, data: bytes) -> None:
-        try:
-            (self._stdout if fd == 1 else self._stderr)(data)
-        except BrokenPipeError:  # a sink may raise it bare, without an errno
-            raise WasiError(E_PIPE) from None
-        except OSError as caught:
-            raise _host_error(caught) from None
 
     def _bind_call(self, table: Any, name: str, params: tuple[str, ...]) -> Callable[..., int | None]:
         function = getattr(table, name)
