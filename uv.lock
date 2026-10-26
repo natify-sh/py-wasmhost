@@ -191,7 +191,7 @@ wheels = [
 [[package]]
 name = "fusedwasi"
 version = "0.0.0"
-source = { git = "https://github.com/natify-sh/fusedwasi?branch=wasi-p2#bcc8b72221ae2cc481682184732ad28774b069af" }
+source = { git = "https://github.com/natify-sh/fusedwasi?branch=wasi-p2#87253372301af304f612f3de898fd18a8cc0c445" }
 
 [[package]]
 name = "identify"
