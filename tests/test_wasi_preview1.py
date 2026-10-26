@@ -528,8 +528,8 @@ def test_mkdir_rmdir_unlink_rename(host: Host, root: Path) -> None:
     assert host.path("path_create_directory", "d") == Errno.exist
     (root / "d" / "f").write_text("x")
     assert host.path("path_remove_directory", "d") == Errno.notempty
-    # unlink of a directory: EISDIR on Linux, EPERM on macOS (what POSIX allows); the system's own answer is given
-    assert host.path("path_unlink_file", "d") in ((Errno.perm,) if sys.platform == "darwin" else (Errno.isdir,))
+    # unlink of a directory: EISDIR (the layer of 0.2 says so where the system says EPERM, as macOS does)
+    assert host.path("path_unlink_file", "d") == Errno.isdir
     assert host.path("path_unlink_file", "d/f") == 0
     assert host.path("path_remove_directory", "d") == 0
     assert host.path("path_unlink_file", "d") == Errno.noent
