@@ -184,7 +184,7 @@ class Shell:
         if not any(c in word for c in "*?["):
             return [word]
         found = sorted(glob.glob(os.path.join(glob.escape(self.cwd), word)))
-        return [os.path.relpath(p, self.cwd) for p in found] or [word]
+        return [os.path.relpath(p, self.cwd).replace(os.sep, "/") for p in found] or [word]
 
     def parse(self, line):
         """A list of (pipeline, connector before it); a pipeline is a list of commands (words, in, out, append)."""
