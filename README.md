@@ -508,7 +508,7 @@ engines, about 5 times slower on a tight loop).
 
 `wasmhost.wasi.preview1` is a host for `wasi_snapshot_preview1` (WASI 0.1), the interface that Rust (`wasm32-wasip1`), wasi-sdk, Zig and
 most "command line" modules are built against: all 46 functions of the specification, in plain Python. The calls themselves are those of the package
-`fusedwasi` (`fusedwasi.p1`, a dependency of wasmhost: pure Python, `py3-none-any`, nothing else to install), the Python twin of the C core that `wasmext` builds into
+`fusedwasi` (a dependency of wasmhost: pure Python, `py3-none-any`, nothing else to install; one `fusedwasi.p2.State` is the world of a `Preview1` and one `Guest` is each instance), the Python twin of the C core that `wasmext` builds into
 its modules; the two are tested against each other with the same scripts of calls. `wasmhost.wasi.preview1` gives them the shape wasmhost has: the options below,
 the import objects of the engines, and the tables of the specification. It also
 offers `wasi_unstable`, the first snapshot, which older toolchains (wasienv, wasm-clang) still produce and which the Lua build of
@@ -550,12 +550,17 @@ code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `
   are callables that take bytes, or objects with `write` (default: the interpreter's own streams).
 - **Running.** `wasi.run(module)` instantiates, starts and closes. To give options to the instance, or to make it yourself, use
   `wasi.instantiate(module, timeout=5)` and `wasi.start(instance)`, or `wasi.imports()` with `wasi.bind(instance)`: the import
-  object has both snapshots, and the engine links the one a module asks for.
+  object has both snapshots, and the engine links the one a module asks for. Each `imports()` is the calls of one more instance over
+  the same world (the same files, arguments, environment and standard streams, and a memory of its own: `bind(instance)` gives it the
+  memory of the instance whose import object came from the last `imports()`, and `instantiate` does the pairing by itself), so several
+  instances can run over one `Preview1`. On an engine that keeps its memory out of this process (the JavaScript ones), a call reads
+  the memory whole into a buffer and writes back what it changed (fusedwasi reads and writes a buffer): a program with a large
+  memory pays for that at each call; wasmtime and wasm3 give a view and copy nothing.
 - **`wasi_unstable`** is the same calls with four differences (the order of `whence`, one right less, a 32-bit link count in
   `filestat`, and a clock subscription with an extra field) and no `sock_accept`.
 - **Errors.** A read of standard output and a write to standard input are `EBADF`; a name that is not UTF-8 is `ENOENT` on POSIX (a name is bytes
   there) and `EINVAL` on Windows; unlinking a directory is `EISDIR` on Linux and `EPERM` on macOS (what the system says); a seek by 0 bytes from the current position needs only the right to tell. These are the answers of fusedwasi, and so of `wasmext`.
-- **Not supported:** sockets (`ENOTSOCK`), signals (`ENOSYS`: `proc_raise` does not end the program here, whereas in `wasmext` and in fusedwasi it does). A host function that sleeps (`poll_oneoff`) is outside what
+- **Not supported:** sockets (`ENOTSOCK`), signals (`ENOSYS`: `proc_raise` does not end the program here, whereas in `wasmext` it does; wasmhost gives fusedwasi a `signal` hook that answers `ENOSYS`, since without one fusedwasi answers `ENOTSUP`; signal 0, "none", is success (0) and a number above 30 `EINVAL`, both answered by fusedwasi itself). A host function that sleeps (`poll_oneoff`) is outside what
   `timeout` and `fuel` can stop.
 
 ## Try it on a device
