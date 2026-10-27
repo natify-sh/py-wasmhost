@@ -670,6 +670,26 @@ def test_sched_yield_and_proc_raise(host: Host) -> None:
     host.ok("sched_yield")
     assert host("proc_raise", 15) == Errno.nosys
     assert host("proc_raise", 99) == Errno.inval
+    assert (
+        host("proc_raise", 0) == Errno.success
+    )  # fusedwasi answers "no signal" itself; wasmhost answered ENOSYS before
+    assert host("proc_raise", 30) == Errno.nosys
+    assert host("proc_raise", 31) == Errno.inval
+
+
+def test_instances_of_one_host_have_their_own_memory(root: Path) -> None:
+    """Each `imports()` is one more instance over the same world: a call writes into the memory of its own instance."""
+    wasi = Preview1(args=["a", "bc"])
+    first, second = Memory(), Memory()
+    wasi.memory = first
+    calls_first = wasi.imports()[preview1.SNAPSHOT]
+    calls_second = wasi.imports()[preview1.SNAPSHOT]
+    wasi.memory = second  # the last imports() is the one that `memory` means
+    assert calls_first["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", first.data, 16) == (2, 5)
+    assert struct.unpack_from("<II", second.data, 16) == (0, 0)  # the call of the first instance left the second alone
+    assert calls_second["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", second.data, 16) == (2, 5)
 
 
 def sub_clock(userdata: int, timeout: int, abstime: bool = False, clock: int = 1) -> bytes:
@@ -762,9 +782,11 @@ def test_close_closes_the_files(host: Host, root: Path) -> None:
 
 
 def test_context_manager_closes(root: Path) -> None:
-    with Preview1(preopens={"/": root}) as wasi:
-        assert wasi.imports()
-    assert not any(entry.kind for entry in wasi._state.entries)  # pyright: ignore[reportPrivateUsage]
+    host = Host(preopens={"/": root})
+    with host.wasi as wasi:
+        assert wasi is host.wasi
+        host.ok("fd_prestat_get", 3, host.alloc(8))
+    assert host("fd_prestat_get", 3, host.alloc(8)) == Errno.badf  # the directory is closed with the block
 
 
 # --- wasi_unstable, the first snapshot: the four things in which it differs
@@ -994,3 +1016,16 @@ def test_the_first_snapshot_has_read_only_preopens_too(root: Path) -> None:
     old = Host(preopens={"/": root}, readonly=True, snapshot=preview1.UNSTABLE)
     assert old.open("a", Oflags.creat)[0] == Errno.notcapable
     assert old.path("path_create_directory", "d") == Errno.notcapable
+
+
+def test_a_memory_with_no_view_gets_back_only_what_a_call_changed() -> None:
+    """The engines that keep their memory out of this process are given a copy; what goes back is the changed runs."""
+    changed = preview1._changed  # pyright: ignore[reportPrivateUsage]
+    before = bytes(3 << 16)
+    after = bytearray(before)
+    assert changed(before, after) == []
+    after[5] = 1
+    after[(1 << 16) + 4095] = 1  # the last byte of a block of 4 KiB ...
+    after[(1 << 16) + 4096] = 1  # ... and the first of the next one: one run
+    after[(2 << 16) + 9] = 1
+    assert changed(before, after) == [(0, 4096), (1 << 16, (1 << 16) + 8192), (2 << 16, (2 << 16) + 4096)]
