@@ -1,7 +1,7 @@
 [build-system]
 # ziglang is the wasm32 C compiler (clang + wasi libc) that build.sh and real/build.sh use; setup.py runs them when
 # the .wasm modules are not in src/wasmgit/ yet. cmake, ninja and make must be installed (the CI workflow does that).
-requires = ["setuptools>=77", "setuptools_scm>=8", "ziglang==0.17.0"]
+requires = ["setuptools>=84", "setuptools-scm>=8", "ziglang>=0.16.0,<0.17"]
 build-backend = "setuptools.build_meta"
 
 [project]
