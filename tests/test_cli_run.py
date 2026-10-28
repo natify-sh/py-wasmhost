@@ -261,3 +261,19 @@ def test_the_text_helpers_keep_characters_and_sizes() -> None:
         b"",
         b"",
     ]
+
+
+def test_a_text_input_that_only_has_readline_or_is_none() -> None:
+    """The console of Pythonista replaces stdin with an object of its own; an embedded interpreter may have None."""
+
+    class Lines:
+        def __init__(self, lines: list[str]) -> None:
+            self.lines = lines
+
+        def readline(self) -> str:
+            return self.lines.pop(0) if self.lines else ""
+
+    lines = _run._stdin(Lines(["ab\n", "c\n"]))  # pyright: ignore[reportPrivateUsage]
+    assert [lines.read(2), lines.read(9), lines.read(9), lines.read(9)] == [b"ab", b"\n", b"c\n", b""]
+    assert _run._stdin(None).read(5) == b""  # pyright: ignore[reportPrivateUsage]
+    assert _run._stdin(io.StringIO("x")).read(0) == b""  # pyright: ignore[reportPrivateUsage]
