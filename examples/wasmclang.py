@@ -247,7 +247,8 @@ class MemFS:
         # The calls that are not about files are `wasi.preview1`'s (the first snapshot, `wasi_unstable`); every file
         # call is memfs's own: its exports are the WASI functions, and they work on the memory of the other module.
         host = preview1.Preview1(argv)
-        calls = {name: host.imports()[preview1.UNSTABLE][name] for name in HOST_CALLS}
+        imp = host.imports()[preview1.UNSTABLE]  # once: every call of imports() makes the calls of one more instance
+        calls = {name: imp[name] for name in HOST_CALLS}
         calls["poll_oneoff"] = lambda *_: 52  # ENOSYS: preview1's would look for memfs's descriptors in its own table
         for imp in wasmhost.Module.imports(module):
             if imp.module == "wasi_unstable" and imp.name not in calls:

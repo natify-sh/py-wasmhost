@@ -19,9 +19,10 @@ WebKitGTK JavaScriptCore on CI, refuses the module. With the patch there is no S
 bulk memory, multi-value, reference types, sign extension and extended constants.
 
 It imports only `wasi_snapshot_preview1` (32 functions: `args_*`, `environ_*`, `fd_*`, `path_*`, `clock_time_get`,
-`random_get`, `poll_oneoff`, `sched_yield`, `proc_exit`) and exports `memory` and `_start`. wasmhost has no WASI of its
-own, so it needs a host that provides these: `examples/coreutils.py` is one, in Python. It runs on wasmtime and Node;
-wasm3 stops it right after `args_get` (the build uses multi-value, reference types and bulk memory).
+`random_get`, `poll_oneoff`, `sched_yield`, `proc_exit`) and exports `memory` and `_start`. It needs a host that provides
+these: `wasmhost.wasi.preview1` (over fusedwasi) is one and `examples/coreutils.py` runs it in a shell. It runs on
+wasmtime, Node and wasm3 (`examples/coreutils.py --backend wasm3`; the build uses multi-value, reference types and bulk
+memory).
 
 `lua.wasm`: Lua 5.4.6 (MIT) built to WASI with wasienv, taken as it is from the npm package
 [`@antonz/lua-wasi`](https://www.npmjs.com/package/@antonz/lua-wasi) (`dist/lua.wasm`, from
