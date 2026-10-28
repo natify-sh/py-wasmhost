@@ -341,7 +341,8 @@ def main():
     shell = Shell(args.root, module)
     if args.command is not None:
         return shell.run_line(args.command)
-    print(f"root {shell.root} is /; backend {wasmhost.get_backend().name}; `help` lists the utilities, `exit` leaves")
+    backend = args.backend or wasmhost.get_backend().name
+    print(f"root {shell.root} is /; backend {backend}; `help` lists the utilities, `exit` leaves")
     while True:
         try:
             line = input(f"wasm:{shell.where}$ ")
