@@ -638,7 +638,7 @@ Python's `faulthandler` (on with `python -X faulthandler`, and in pytest) replac
 
 ## Not yet
 
-What the JavaScript API has, or a module can need, and wasmhost does not have yet. `BACKLOG.md` has the order in
+What the JavaScript API has, or a module can need, and wasmhost does not have yet. [ROADMAP.md](ROADMAP.md) says what waits for the store and what for the engines; `BACKLOG.md` has the order in
 which it is meant to be done.
 
 - **Tables and references.** The signature of a table entry is not told by a JavaScript engine (set it by hand,
