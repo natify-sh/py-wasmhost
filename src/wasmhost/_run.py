@@ -170,15 +170,20 @@ def _write(stream: Any) -> Any:
 
 
 class _TextInput:
-    """The bytes of a text stream (UTF-8), for a standard input without `.buffer`; a read gives no more than asked."""
+    """The bytes of a text stream (UTF-8), for a standard input without `.buffer` (the console of Pythonista has
+    a `StdinCatcher`, StaSh a `ShIO`); a read gives no more than asked. A stream with no `read` is read by lines,
+    and `None` (an embedded interpreter with no input) is an input that is over."""
 
     def __init__(self, stream: Any) -> None:
         self.stream = stream
         self.pending = b""
 
     def read(self, count: int) -> bytes:
+        if count <= 0 or self.stream is None:
+            return b""
         if not self.pending:
-            text = self.stream.read(count)
+            reader = getattr(self.stream, "read", None)
+            text = reader(count) if reader is not None else self.stream.readline()
             self.pending = text.encode("utf-8") if isinstance(text, str) else bytes(text or b"")
         chunk, self.pending = self.pending[:count], self.pending[count:]
         return chunk
