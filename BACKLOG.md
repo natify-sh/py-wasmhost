@@ -1,5 +1,7 @@
 # wasmhost backlog
 
+The order of the work and the open decisions (the store, WASI 0.2, what waits for what) are in [ROADMAP.md](ROADMAP.md).
+
 A phased plan. The phases are ordered from what is cheap and needed by other items to what is expensive and depends on the engines.
 Marks: `[x]` done, `[ ]` not done, `[~]` partly done. Size: **S** (up to a day), **M** (a few days),
 **L** (a week or more). "Backends" says where this can actually be done; the rest honestly report `supports(...) == False`.
