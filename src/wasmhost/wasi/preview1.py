@@ -37,7 +37,6 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, Protocol
 
 from fusedwasi import signatures
-from fusedwasi.p1 import wasi_p1_unstable
 from fusedwasi.p2 import Exit, Guest, InputStream, OutputStream, State, StreamClosed, StreamFailed
 
 from .._api import Instance, Module
@@ -152,8 +151,6 @@ UNSTABLE_STRUCTS: dict[str, struct.Struct] = {
 }
 _SUB_CLOCK_UNSTABLE = struct.Struct("<QI4xQQH6x")  # identifier, id, timeout, precision, flags
 _NOT_IN_UNSTABLE = frozenset({"sock_accept"})
-# The calls that read or write something that differs, and so take `legacy=True` when offered as `wasi_unstable`.
-_SNAPSHOT_AWARE = frozenset({"fd_seek", "fd_fdstat_get", "fd_filestat_get", "path_filestat_get", "poll_oneoff"})
 
 # The wasm signature of each function: the parameters (the specification's results other than the errno are
 # pointers, added at the end) and the results. The tests compare this table with the witx file.
@@ -277,26 +274,6 @@ class _Stdout(OutputStream):
             raise StreamFailed(str(caught), errno=caught.errno) from None
 
 
-def _changed(before: bytes | bytearray, after: bytes | bytearray) -> list[tuple[int, int]]:
-    """The runs (start, end) of `after` that differ from `before`, found by comparing blocks of 64 KiB and, in the ones
-    that differ, of 4 KiB (a comparison of blocks is a `memcmp`)."""
-    runs: list[tuple[int, int]] = []
-    size = len(after)
-    for big in range(0, size, 1 << 16):
-        end = min(big + (1 << 16), size)
-        if after[big:end] == before[big:end]:
-            continue
-        for small in range(big, end, 1 << 12):
-            top = min(small + (1 << 12), end)
-            if after[small:top] == before[small:top]:
-                continue
-            if runs and runs[-1][1] == small:
-                runs[-1] = (runs[-1][0], top)
-            else:
-                runs.append((small, top))
-    return runs
-
-
 class _Binding:
     """One instance's side of the host: its memory and its `Guest` (the caller of fusedwasi), over the state that all
     the instances of a `Preview1` share."""
@@ -304,24 +281,17 @@ class _Binding:
     def __init__(self, state: State) -> None:
         self.memory: _Memory | None = None
         self._view: Any = None  # the memory as the call in progress sees it: a view where the engine can give one
-        self._copy: bytearray | None = None  # else a copy of it, taken at the first access of the call
-        self._before = b""  # ... and the memory as it was then
-        self._buffer = bytearray()  # what the copy is made in: kept from one call to the next, not made again
         self.guest = Guest(state, self._memory_of_the_call, signal=_signal)
 
     def _memory_of_the_call(self) -> Any:
+        """What fusedwasi reads and writes: a view of the memory (wasmtime, wasm3: no copy), else the memory object
+        itself, which fusedwasi reads and writes by `read(offset, length)` and `write(offset, data)` for the range a
+        call touches (the engines that keep their memory out of this process)."""
         if self._view is not None:
             return self._view
         if self.memory is None:
             raise RuntimeError("the program has no memory yet: bind(instance) first")
-        if self._copy is None:  # fusedwasi reads and writes a buffer: an engine with no view of its memory gets a copy
-            self._before = self.memory.read(0, len(self.memory))
-            if len(self._buffer) == len(self._before):
-                self._buffer[:] = self._before
-            else:
-                self._buffer = bytearray(self._before)
-            self._copy = self._buffer
-        return self._copy
+        return self.memory
 
     def enter(self) -> None:
         take_view: Callable[[], memoryview] | None = getattr(self.memory, "view", None)
@@ -333,14 +303,7 @@ class _Binding:
                 pass
 
     def leave(self) -> None:
-        """The end of a call: what the call changed in the copy goes back to the memory (the changed runs only)."""
-        copy, before, memory = self._copy, self._before, self.memory
-        self._view = self._copy = None
-        self._before = b""
-        if copy is None or memory is None:
-            return
-        for start, end in _changed(before, copy):
-            memory.write(start, bytes(copy[start:end]))
+        self._view = None
 
 
 def _signal(number: int) -> int:
@@ -478,10 +441,9 @@ class Preview1:
             self.close()
 
     def close(self) -> None:
-        """Close the files the program opened and the preopened directories: what is called after this answers `EBADF`
-        for them (the standard streams stay)."""
+        """Close the files the program opened and the preopened directories. The state stays closed: every descriptor,
+        the standard streams too, answers `EBADF` from now on."""
         self._state.close_all()
-        self._state.preopens = []  # fusedwasi makes the descriptors again at the next call: without the directories
 
     def __enter__(self) -> Preview1:
         return self
@@ -494,16 +456,11 @@ class Preview1:
     def _bind_call(
         self, binding: _Binding, module: str, name: str, params: tuple[str, ...]
     ) -> Callable[..., int | None]:
-        """The function of fusedwasi for an import, as the engine calls it. The five calls in which `wasi_unstable`
-        differs have a function of their own in `wasi_p1_unstable`; every other one is the call of the snapshot, which
-        `fusedwasi.signatures.find_import` gives."""
-        if module == UNSTABLE and name in _SNAPSHOT_AWARE:
-            function = getattr(wasi_p1_unstable, name)
-        else:
-            row = signatures.find_import(SNAPSHOT, name)
-            if row is None:
-                raise LookupError(f"fusedwasi has no function for {SNAPSHOT} {name}")
-            function = row.python_function()
+        """The function of fusedwasi for an import, as the engine calls it (`fusedwasi.signatures.find_import`)."""
+        row = signatures.find_import(module, name)
+        if row is None:
+            raise LookupError(f"fusedwasi has no function for {module} {name}")
+        function = row.python_function()
         masks = tuple(MASK32 if p == i32 else MASK64 for p in params)
         guest = binding.guest
 

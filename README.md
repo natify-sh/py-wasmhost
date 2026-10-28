@@ -553,9 +553,7 @@ code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `
   object has both snapshots, and the engine links the one a module asks for. Each `imports()` is the calls of one more instance over
   the same world (the same files, arguments, environment and standard streams, and a memory of its own: `bind(instance)` gives it the
   memory of the instance whose import object came from the last `imports()`, and `instantiate` does the pairing by itself), so several
-  instances can run over one `Preview1`. On an engine that keeps its memory out of this process (the JavaScript ones), a call reads
-  the memory whole into a buffer and writes back what it changed (fusedwasi reads and writes a buffer): a program with a large
-  memory pays for that at each call; wasmtime and wasm3 give a view and copy nothing.
+  instances can run over one `Preview1`. fusedwasi reads and writes the memory of the instance through a view where the engine gives one (wasmtime, wasm3) and otherwise through `read`/`write` of the range a call touches.
 - **`wasi_unstable`** is the same calls with four differences (the order of `whence`, one right less, a 32-bit link count in
   `filestat`, and a clock subscription with an extra field) and no `sock_accept`.
 - **Errors.** A read of standard output and a write to standard input are `EBADF`; a name that is not UTF-8 is `ENOENT` on POSIX (a name is bytes

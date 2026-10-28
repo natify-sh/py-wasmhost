@@ -1018,14 +1018,31 @@ def test_the_first_snapshot_has_read_only_preopens_too(root: Path) -> None:
     assert old.path("path_create_directory", "d") == Errno.notcapable
 
 
-def test_a_memory_with_no_view_gets_back_only_what_a_call_changed() -> None:
-    """The engines that keep their memory out of this process are given a copy; what goes back is the changed runs."""
-    changed = preview1._changed  # pyright: ignore[reportPrivateUsage]
-    before = bytes(3 << 16)
-    after = bytearray(before)
-    assert changed(before, after) == []
-    after[5] = 1
-    after[(1 << 16) + 4095] = 1  # the last byte of a block of 4 KiB ...
-    after[(1 << 16) + 4096] = 1  # ... and the first of the next one: one run
-    after[(2 << 16) + 9] = 1
-    assert changed(before, after) == [(0, 4096), (1 << 16, (1 << 16) + 8192), (2 << 16, (2 << 16) + 4096)]
+def test_a_memory_with_no_view_is_read_and_written_by_range() -> None:
+    """A call asks the memory object for the ranges it touches, not for the whole memory."""
+    seen: list[int] = []
+
+    class Counting(Memory):
+        def read(self, offset: int, length: int) -> bytes:
+            seen.append(length)
+            return super().read(offset, length)
+
+        def write(self, offset: int, data: bytes) -> None:
+            seen.append(len(data))
+            super().write(offset, data)
+
+    wasi = Preview1(args=["a", "bc"])
+    wasi.memory = memory = Counting()
+    assert wasi.imports()[preview1.SNAPSHOT]["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", memory.data, 16) == (2, 5)
+    assert seen and max(seen) <= 8
+
+
+def test_after_close_every_descriptor_is_gone(root: Path) -> None:
+    """The state stays closed: the standard streams answer EBADF too, and nothing is made again."""
+    host = Host(preopens={"/": root})
+    host.wasi.close()
+    host.wasi.close()  # a second close is nothing
+    for fd in (0, 1, 2, 3):
+        assert host("fd_close", fd) == Errno.badf
+    assert host("fd_prestat_get", 3, host.alloc(8)) == Errno.badf
