@@ -9,6 +9,7 @@ of its own, as `wasmtime run --invoke` does.
 from __future__ import annotations
 
 import argparse
+import codecs
 import os
 import re
 import struct
@@ -147,12 +148,46 @@ def _environment(specs: Sequence[str], inherit: bool = False) -> dict[str, str]:
 
 
 def _write(stream: Any) -> Any:
-    def write(data: bytes) -> None:
-        out = getattr(stream, "buffer", stream)
-        out.write(data)
-        out.flush()
+    """A writer of bytes for a standard stream. A stream without `.buffer` (the shell of an iOS app such as
+    StaSh, `io.StringIO`) takes text: the bytes are decoded as UTF-8, a character cut between two writes is kept."""
+    binary = getattr(stream, "buffer", None)
+    if binary is not None:
 
-    return write
+        def write(data: bytes) -> None:
+            binary.write(data)
+            binary.flush()
+
+        return write
+    decoder = codecs.getincrementaldecoder("utf-8")("replace")
+
+    def write_text(data: bytes) -> None:
+        stream.write(decoder.decode(data))
+        flush = getattr(stream, "flush", None)
+        if flush is not None:
+            flush()
+
+    return write_text
+
+
+class _TextInput:
+    """The bytes of a text stream (UTF-8), for a standard input without `.buffer`; a read gives no more than asked."""
+
+    def __init__(self, stream: Any) -> None:
+        self.stream = stream
+        self.pending = b""
+
+    def read(self, count: int) -> bytes:
+        if not self.pending:
+            text = self.stream.read(count)
+            self.pending = text.encode("utf-8") if isinstance(text, str) else bytes(text or b"")
+        chunk, self.pending = self.pending[:count], self.pending[count:]
+        return chunk
+
+
+def _stdin(stream: Any) -> Any:
+    """The standard input as an object that reads bytes: the binary buffer if there is one, else the text encoded."""
+    binary = getattr(stream, "buffer", None)
+    return binary if binary is not None else _TextInput(stream)
 
 
 def _invoke(instance: Instance, module: Module, name: str, words: Sequence[str]) -> list[str]:
@@ -211,7 +246,7 @@ def run(host_args: Sequence[str], path: str, program_args: Sequence[str]) -> int
             args=[args.argv0 if args.argv0 is not None else os.path.basename(path), *program_args],
             env=_environment(args.env, args.inherit_env),
             preopens=_preopens(args.dir),
-            stdin=sys.stdin.buffer,
+            stdin=_stdin(sys.stdin),
             stdout=_write(sys.stdout),
             stderr=_write(sys.stderr),
             readonly=args.readonly,
