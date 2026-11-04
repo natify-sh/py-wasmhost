@@ -47,7 +47,27 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 | custom-page-sizes | other | no | no | no | no | no | no | no | no |
 | wide-arithmetic | other | yes | no | yes | yes | no | no | no | no |
 
-*The tables of `supports(...)` and of the WASI program are written again from the next CI run (the first run read `features` from the class, and `jscontext` adds `imports` only when its engine starts).*
+| `supports(...)` | `wasmtime` | `node` | `bun` | `wasm3` | `jsc` | `gi-jsc` | `jscontext` | `pyodide` |
+|---|---|---|---|---|---|---|---|---|
+| `fuel` | yes | no | no | yes | no | no | no | no |
+| `import.global` | yes | yes | yes | no | yes | yes | yes | yes |
+| `import.memory` | yes | yes | yes | no | yes | yes | yes | yes |
+| `import.table` | yes | yes | yes | no | yes | yes | yes | yes |
+| `imports` | yes | yes | yes | yes | yes | no | yes* | yes |
+| `isolated` | yes | no | no | yes | no | no | no | no |
+| `memory.grow` | yes | yes | yes | no | yes | yes | yes | yes |
+| `memory.view` | yes | no | no | yes | no | no | no | no |
+| `table.funcs` | yes | yes | yes | no | yes | yes | yes | yes |
+| `table.length` | yes | yes | yes | no | yes | yes | yes | yes |
+| `table.signatures` | yes | no | no | no | no | no | no | no |
+| `threads` | yes | yes | yes | no | no | no | no | no |
+| `timeout` | yes | yes | no | yes | no | no | no | no |
+
+| WASI program (`Preview1` runs `wasi_hello`) | `wasmtime` | `node` | `bun` | `wasm3` | `jsc` | `gi-jsc` | `jscontext` | `pyodide` |
+|---|---|---|---|---|---|---|---|---|
+| `wasi_snapshot_preview1`: arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
+
+\* `jscontext` / `imports`: corrected by hand to "yes" (the owner, 2026-11-05). The first CI run read `features` from the class, and `jscontext` adds `imports` only when its engine starts (`_js.py`); the WASI program ran on it in the same run. The next run (the test now reads the live backend) writes this cell itself.
 
 Measured by CI: 38 different lines of the log, from these combinations:
 - `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
@@ -77,7 +97,7 @@ From the CI run of `fde7d0d` (all jobs of Tests green). What the tables say:
   on a Mac is a real JSContext with the JIT on.
 * **Windows, PyPy and the Python versions** (3.10, 3.15, 3.15t, PyPy 3.11) gave the same answers as Linux for `wasmtime`, `node` and `wasm3`; the list under the tables names every combination that was run.
 
-**`supports(...)`**: *(written after the run of the commit that reads the live backend: a first run read the class, and `jscontext` adds `imports` only when its engine starts.)*
+**`supports(...)`**: written from the first run, with the one cell marked `*` corrected; the paragraph about it is written after the next run.
 
 ## WASI
 
