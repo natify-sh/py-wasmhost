@@ -1,6 +1,7 @@
 # wasmhost backlog
 
-The order of the work and the open decisions (the store, WASI 0.2, what waits for what) are in [ROADMAP.md](ROADMAP.md).
+The direction, the order of the work and the open decisions (wasmhost goes its own way with no shared store; WASI is fusedwasi 0.1 and 0.2 over one state; the support of features is widened backend by backend) are in [ROADMAP.md](ROADMAP.md).
+What each backend supports now, measured by CI, is in [SUPPORTS.md](SUPPORTS.md).
 
 A phased plan. The phases are ordered from what is cheap and needed by other items to what is expensive and depends on the engines.
 Marks: `[x]` done, `[ ]` not done, `[~]` partly done. Size: **S** (up to a day), **M** (a few days),
@@ -612,8 +613,8 @@ Out of scope: sockets, threads, interactive stdin, WASI preview2.
 
 - [ ] **B-601** Exceptions: `WebAssembly.Tag` and `WebAssembly.Exception` in the API (the self-test already knows the encoding).
 - [ ] **B-602** SIMD (`v128`) and shared memory/threads: the JS engines have it, wasm3 does not.
-- [ ] **B-603** `memory64` and multi-memory (Safari does not support multi-memory).
-- [ ] **B-604** GC types.
+- [ ] **B-603** `memory64` and multi-memory in the API. The modules already run on the backends that say "yes" for them in SUPPORTS.md (Bun does not take `memory64`); what is missing is the API: 64-bit sizes and offsets, several memories of one instance.
+- [ ] **B-604** GC types. First the parser: `_binary.py` raises `unsupported type form` for a module with a struct or array type, so wasmhost refuses it before the engine is asked, although wasmtime-py, Node and Bun run such a module (a struct made and read back through them directly answers; checked 2026-11-04). SUPPORTS.md shows the cell as "no, parser of wasmhost". Then a model of references in the API, which is the engines'.
 - [ ] **B-605** Custom page sizes (the `custom-page-sizes` proposal: bit 3 of a memory's limits flags, a page of 2^k bytes instead of 64 KiB).
       No engine takes such a module here (checked 2026-10-07 with a module whose memory has the flag): `wasmtime` and `wasm3` refuse it,
       `node` ("invalid memory limits flags 0x8") and `bun` ("resizable limits flag are not valid") do not parse it, so it fails as a `CompileError`
@@ -625,6 +626,11 @@ Out of scope: sockets, threads, interactive stdin, WASI preview2.
 Each item goes through `supports(...)`; start only when a real module appears that needs it.
 Self-test: the step "exception handling" already knows the encoding; add a check of `Tag`/`Exception` and a step each for SIMD,
 shared memory, memory64 (and GC), each with `supports(...)`.
+
+- [ ] **B-606** (decided 2026-11-04) WASI 0.2 on the one state: a module of 0.2 fused to one core module (its imports are flat `wasi:*` names, which `fusedwasi.p2` knows) runs over the `State` of `Preview1`, so that files,
+      arguments, environment and streams are the same for 0.1 and 0.2. Not a Component Model host. Waits for nothing in fusedwasi (its neutral tests bind the flat imports on wasmtime-py and on pywasm3); wasmhost has to offer
+      the imports and test them on every backend that takes host functions. Each step has its row in the WASI table of SUPPORTS.md.
+- [ ] **B-607** (decided 2026-11-04) Keep SUPPORTS.md true: a new feature or a new backend gets a probe in `tests/feature_probes.py` (`tools/probe_features.py --regenerate` makes its bytes), and the tables are written again from the logs of a CI run.
 
 ## Ideas, not planned
 

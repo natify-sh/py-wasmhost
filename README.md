@@ -341,7 +341,7 @@ own probe: it fails when its runtime is missing. Choose one with `WASMHOST_BACKE
 use. `wasmhost.close()` closes the backends it started. (In WebAssembly's words the *host* is the embedder, the
 Python side that provides imports; what runs the module is the backend.)
 
-Not every backend can do everything; `backend.supports(...)` says:
+Not every backend can do everything; `backend.supports(...)` says (the same, with the WebAssembly features and the operating systems, as CI measured it: [SUPPORTS.md](SUPPORTS.md)):
 
 |             | `memory.grow` from Python                                      | `table.length` | host functions (`imports`)                                | Global, Memory, Table on their own (`import.*`) | table get/set/grow (`table.funcs`) | `isolated`   | `timeout`                                    | `fuel`                             |
 | ----------- | -------------------------------------------------------------- | -------------- | --------------------------------------------------------- | ----------------------------------------------- | ---------------------------------- | ------------ | -------------------------------------------- | ---------------------------------- |
@@ -638,8 +638,8 @@ Python's `faulthandler` (on with `python -X faulthandler`, and in pytest) replac
 
 ## Not yet
 
-What the JavaScript API has, or a module can need, and wasmhost does not have yet. [ROADMAP.md](ROADMAP.md) says what waits for the store and what for the engines; `BACKLOG.md` has the order in
-which it is meant to be done.
+What the JavaScript API has, or a module can need, and wasmhost does not have yet. [ROADMAP.md](ROADMAP.md) says what waits for what; `BACKLOG.md` has the order in
+which it is meant to be done. [SUPPORTS.md](SUPPORTS.md) says what each backend supports today, measured by CI.
 
 - **Tables and references.** The signature of a table entry is not told by a JavaScript engine (set it by hand,
   or let the module's `elem` segment tell it; wasmtime finds it); no `externref` (tables, globals or values); no `v128`.
@@ -655,7 +655,7 @@ which it is meant to be done.
   call at a time (a lock of its own, see "Async and threads").
 - **Newer proposals**: no API for `WebAssembly.Tag` and `WebAssembly.Exception` (the self-test only reports which
   encodings of exceptions an engine takes), SIMD, `memory64`, multi-memory, GC types.
-  Whether a module that uses them runs is up to the engine.
+  Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are refused by wasmhost's own parser, whatever the engine can do: B-604.)
 - **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` (see [WASI](#wasi)); not yet: sockets, and a safe open through
   `openat` (the check of a name and the open are two steps now). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
 
