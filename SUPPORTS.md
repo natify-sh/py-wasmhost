@@ -24,13 +24,60 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 "other" is a proposal that is in none of them.
 
 <!-- probe:begin -->
+| WebAssembly feature | Edition | `wasmtime` (wasmtime-py 49.0.0) | `node` (node 22.23.4, node 24.22.1, node 24.22.2) | `bun` (bun 1.4.4) | `wasm3` (pywasm3 0.9.1.dev75+g4c1334e03) | `jsc` | `gi-jsc` | `jscontext` | `pyodide` (pyodide 314.0.7) |
+|---|---|---|---|---|---|---|---|---|---|
+| mvp | 1.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| mutable-globals | 1.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| sign-extension | 2.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| non-trapping-float-to-int | 2.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| multi-value | 2.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| reference-types | 2.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| bulk-memory | 2.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| simd | 2.0 | yes | yes | yes | no | no (Linux, JIT off); yes (Darwin, Linux) | no (Linux, JIT off); yes (Linux) | yes | yes |
+| memory64 | 3.0 | yes | yes | no | yes | no | no | no | yes |
+| multi-memory | 3.0 | yes | yes | yes | yes | no | no | no | yes |
+| tail-call | 3.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| extended-const | 3.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| relaxed-simd | 3.0 | yes | yes | yes | no | no | no | no | yes |
+| exceptions-exnref | 3.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| typed-function-references | 3.0 | yes | yes | yes | yes | yes | yes | yes | yes |
+| gc | 3.0 | not added to wasmhost | not added to wasmhost | not added to wasmhost | not added to wasmhost | not added to wasmhost | not added to wasmhost | not added to wasmhost | not added to wasmhost |
+| legacy-exceptions | other | no | yes | yes | no | yes | yes | yes | yes |
+| threads | other | no | yes | yes | no | no (Darwin); yes (Linux, Linux, JIT off) | yes | no | yes |
+| custom-page-sizes | other | no | no | no | no | no | no | no | no |
+| wide-arithmetic | other | yes | no | yes | yes | no | no | no | no |
+
+*The tables of `supports(...)` and of the WASI program are written again from the next CI run (the first run read `features` from the class, and `jscontext` adds `imports` only when its engine starts).*
+
+Measured by CI: 38 different lines of the log, from these combinations:
+- `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `node`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `bun`: Darwin, Linux; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `wasm3`: Darwin, Linux, Windows; CPython 3.15.2
+- `jsc`: Darwin, Linux, Linux (JIT off); CPython 3.10.22, CPython 3.12.3, CPython 3.15.2, PyPy 3.11.17
+- `gi-jsc`: Linux, Linux (JIT off); CPython 3.12.3
+- `jscontext`: Darwin; CPython 3.10.22, CPython 3.15.2
+- `pyodide`: Emscripten; CPython 3.14.2
 <!-- probe:end -->
 
 ## Reading the tables
 
 The notes below are written by hand from the tables and are checked again whenever the tables are written.
 
-*(to be filled from the first CI run that carries the probe)*
+From the CI run of `fde7d0d` (all jobs of Tests green). What the tables say:
+
+* **WebAssembly 1.0 and 2.0 run on every backend**, with one exception: `simd`. `wasm3` has no SIMD, and the JavaScriptCore of WebKitGTK **without its JIT** (the CI job that stands in for an iPhone, where wasm gets no JIT) refuses
+  it too; with the JIT it runs (`jsc` on macOS and Linux, `jscontext` on macOS).
+* **WebAssembly 3.0:** `tail-call`, `extended-const`, `exceptions-exnref` and `typed-function-references` run on all eight backends. `multi-memory` runs everywhere except the JavaScriptCore family (`jsc`, `gi-jsc`,
+  `jscontext`), so not in Pythonista. `memory64` is refused by Bun and by the JavaScriptCore family; `relaxed-simd` by `wasm3` and by the JavaScriptCore family. `gc` is not added to wasmhost (B-604): its cells say nothing about the engines.
+* **Other proposals:** `legacy-exceptions` (`try`/`catch`) runs on every backend except `wasmtime` and `wasm3`; `threads` (a shared memory and atomics inside the module) on `node`, `bun`, `pyodide` and on `gi-jsc` / `jsc` on
+  Linux, not on `wasmtime`, `wasm3`, `jscontext` and `jsc` on macOS; `wide-arithmetic` on `wasmtime`, `bun` and `wasm3`; `custom-page-sizes` on none.
+* **The Node column has three versions** (22.23.4 on Linux, 24.22.x on macOS and Windows); they gave the same answers.
+* **Where a cell lists platforms**, the runs disagreed: `jsc` / `gi-jsc` ran both with the JIT and with `JSC_useJIT=false`, and the cell names the run without the JIT. The WebKitGTK run without the JIT is a stand-in for iOS, not iOS itself: `jscontext`
+  on a Mac is a real JSContext with the JIT on.
+* **Windows, PyPy and the Python versions** (3.10, 3.15, 3.15t, PyPy 3.11) gave the same answers as Linux for `wasmtime`, `node` and `wasm3`; the list under the tables names every combination that was run.
+
+**`supports(...)`**: *(written after the run of the commit that reads the live backend: a first run read the class, and `jscontext` adds `imports` only when its engine starts.)*
 
 ## WASI
 
