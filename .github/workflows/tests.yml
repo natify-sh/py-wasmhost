@@ -107,6 +107,15 @@ jobs:
           CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
           CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
 
+      # What each backend takes, for SUPPORTS.md (tools/probe_features.py reads these lines from the log). Last, so that the line is at the end of the log; a backend that can not start on this
+      # runner fails its own run and is ignored.
+      - name: "Probe the features of every backend (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        run: |
+          for b in wasmtime node bun wasm3 jsc jscontext; do
+            uv run --locked pytest -q -p no:cacheprovider tests/test_feature_probes.py --wasm-backend "$b" 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
+          done
+
   pyodide:
     name: Pyodide
     runs-on: ubuntu-latest
@@ -138,6 +147,13 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: ${{ runner.temp }}/pyodide
         run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest
+        env:
+          FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
+
+      - name: "Probe the features of the pyodide backend (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        working-directory: ${{ runner.temp }}/pyodide
+        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest -k test_what_the_backend_takes 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
         env:
           FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
 
@@ -192,3 +208,12 @@ jobs:
         run: |
           WASMHOST_BACKEND=gi-jsc .venv/bin/python examples/basic.py
           WASMHOST_BACKEND=jsc .venv/bin/python examples/imports.py
+
+      - name: "Probe the features of gi-jsc and jsc (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        run: |
+          for b in gi-jsc jsc; do
+            .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_feature_probes.py --wasm-backend "$b" 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
+          done
+        env:
+          JSC_useJIT: "true"
