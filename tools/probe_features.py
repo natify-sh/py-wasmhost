@@ -23,7 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LINE = re.compile(r"WASMHOST-SUPPORTS (\{.*\})")
 ORDER = ["wasmtime", "node", "bun", "wasm3", "jsc", "gi-jsc", "jscontext", "pyodide"]
-CELL = {"yes": "yes", "no": "no", "parser": "no, parser of wasmhost"}
+CELL = {"yes": "yes", "no": "no", "parser": "not added to wasmhost"}
 
 
 def regenerate() -> None:

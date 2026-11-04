@@ -23,15 +23,14 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 - Runs core modules on `wasmtime`, `wasm3` (pywasm3), `node`, `bun`, `jsc`, `gi-jsc`, `jscontext` and `pyodide`; what an engine can not do is reported as `supports(...) == False`, not faked.
 - WASI 0.1 is `wasmhost.wasi.preview1`, a host over **fusedwasi** (0.1.0a1 from PyPI, pure Python), with `wasi_unstable` too.
-- Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them (SUPPORTS.md); the API does not yet carry `v128`, `externref` or a GC reference as a value, and the parser of
-  wasmhost refuses GC types.
+- Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them (SUPPORTS.md); the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added yet.
 
 ## What is next, and what each item waits for
 
 | Item | What it is | Waits for |
 |---|---|---|
 | **WASI 0.2 on the one state** | a fused module of 0.2 runs over the `State` of `Preview1` | fusedwasi: its flat `wasi:*` imports are there (its neutral tests bind them on wasmtime-py and pywasm3); wasmhost has to offer them and test them on every backend |
-| **B-604** | GC types: the parser of wasmhost stops at the type form (`unsupported type form`) although wasmtime, Node and Bun run such a module | the parser (`_binary.py`) first; then a model of references in the API, which is the engines' (a GC reference has no Python value) |
+| **B-604** | GC types: not added to wasmhost and not tested in it yet (the parser refuses the type forms), while wasmtime, Node and Bun run such a module directly | the parser (`_binary.py`) and tests per backend first; then a model of references in the API, which is the engines' (a GC reference has no Python value) |
 | **B-203** | `externref` and `funcref` as values of globals, and across instances | the engines and the API: reference types run inside a module on every backend measured in SUPPORTS.md, but no value of that kind crosses the Python API. Deferred 2026-10-16: no consumer, none expected |
 | **B-601** | exceptions: `WebAssembly.Tag` and `WebAssembly.Exception` in the API | the engines that have them (SUPPORTS.md: `exceptions-exnref`, `legacy-exceptions`) |
 | **B-602** | SIMD (`v128`) as a value, shared memory and threads | the engines: the JavaScript engines have them, wasm3 has not SIMD; a shared `Memory` is a `NotImplementedError` today |

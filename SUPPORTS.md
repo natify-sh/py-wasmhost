@@ -17,7 +17,7 @@ When the OSes or the Pythons of one backend disagree, the cell says so (`yes (Li
 A probe is a small module that really uses the feature (its WAT is in `tests/feature_probes.py` beside the bytes). It is given to `wasmhost.Module` and `Instance` on the backend, its export `f` is called, and the
 answer must be the one the feature gives; a module that an engine skips over without failing is caught by that, and wasm3, which compiles a function when it is first called, is caught by the call.
 "yes" is that the module runs through wasmhost on that backend: what the engine accepts and does with the feature **inside the module**. A value of type `v128`, `externref` or a GC reference still can
-not cross the Python API ([README, "Not yet"](README.md#not-yet)). "no, parser of wasmhost" is that wasmhost's own parser (`_binary.py`) refused the module and the engine was never asked.
+not cross the Python API ([README, "Not yet"](README.md#not-yet)). "not added to wasmhost" is a feature that wasmhost has not added or tested yet: its own parser (`_binary.py`) refuses the module, so the engine was never asked (it may well support the feature itself).
 
 The column "Edition" says which edition of the standard took the proposal in: 1.0 is the 2019 core, 2.0 the 2022 standard (sign extension, non-trapping float to int, multi-value, reference types, bulk
 memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories, GC, typed function references, tail calls, final exception handling with `exnref`, relaxed SIMD, extended constants);

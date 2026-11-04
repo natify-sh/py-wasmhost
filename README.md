@@ -655,7 +655,7 @@ which it is meant to be done. [SUPPORTS.md](SUPPORTS.md) says what each backend 
   call at a time (a lock of its own, see "Async and threads").
 - **Newer proposals**: no API for `WebAssembly.Tag` and `WebAssembly.Exception` (the self-test only reports which
   encodings of exceptions an engine takes), SIMD, `memory64`, multi-memory, GC types.
-  Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are refused by wasmhost's own parser, whatever the engine can do: B-604.)
+  Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are not added to wasmhost yet, whatever the engine can do: B-604.)
 - **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` (see [WASI](#wasi)); not yet: sockets, and a safe open through
   `openat` (the check of a name and the open are two steps now). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
 
