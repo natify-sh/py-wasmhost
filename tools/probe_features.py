@@ -50,10 +50,20 @@ def read(paths: list[str]) -> list[dict]:
     records: list[dict] = []
     seen: set[str] = set()
     for f in files:
-        for found in LINE.finditer(f.read_text(encoding="utf-8", errors="replace")):
-            if found.group(1) not in seen:  # the same line twice in one log (a retry, a summary) counts once
-                seen.add(found.group(1))
-                records.append(json.loads(found.group(1)))
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+            found = LINE.search(line)
+            if found is None:
+                continue
+            record = json.loads(found.group(1))
+            # `gh run view --log` lines are "job<TAB>step<TAB>time text": the JavaScriptCore steps that run
+            # without the JIT (as on iOS) say so in their names
+            parts = line.split("\t")
+            if len(parts) >= 3 and "JIT off" in parts[1]:
+                record["jit"] = "off"
+            key = json.dumps(record, sort_keys=True)
+            if key not in seen:  # the same line twice (the suite and the last step both print it) counts once
+                seen.add(key)
+                records.append(record)
     return records
 
 
@@ -117,20 +127,18 @@ def markdown(records: list[dict]) -> str:
         + " |"
     )
 
-    jobs = sorted({(r["backend"], r["os"], r["python"]) for r in records})
-    out += [
-        "",
-        f"Measured by CI: {len(records)} runs ({len(jobs)} different backend / OS / Python combinations): "
-        + "; ".join(f"{b} on {o} {p}" for b, o, p in jobs)
-        + ".",
-    ]
+    out += ["", f"Measured by CI: {len(records)} different lines of the log, from these combinations:"]
+    for b in backends:
+        oses = sorted({r["os"] + (" (JIT off)" if r.get("jit") == "off" else "") for r in runs[b]})
+        pys = sorted({r["python"] for r in runs[b]})
+        out.append(f"- `{b}`: {', '.join(oses)}; {', '.join(pys)}")
     return "\n".join(out) + "\n"
 
 
 def _by_platform(rs: list[dict], get) -> dict[str, set[str]]:  # type: ignore[no-untyped-def]
     values: dict[str, set[str]] = defaultdict(set)
     for r in rs:
-        values[r["os"]].add(get(r))
+        values[r["os"] + (", JIT off" if r.get("jit") == "off" else "")].add(get(r))
     return values
 
 

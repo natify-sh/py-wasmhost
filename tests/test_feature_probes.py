@@ -19,7 +19,6 @@ import wasm_builder as wb
 from feature_probes import run
 
 import wasmhost
-from wasmhost import _registry as registry
 from wasmhost.wasi import preview1
 
 
@@ -66,14 +65,17 @@ def _wasi(backend: str) -> str:
         return "no"
 
 
-def test_what_the_backend_takes(backend: str, capsys: pytest.CaptureFixture[str]) -> None:
+def test_what_the_backend_takes(session: str, capsys: pytest.CaptureFixture[str]) -> None:
+    backend = session
     features = run(backend)
     record = {
         "backend": backend,
         "engine": _engine(backend),
         "os": platform.system(),
         "python": f"{platform.python_implementation()} {platform.python_version()}",
-        "api": sorted(registry.BACKENDS[backend].features),
+        "api": sorted(
+            wasmhost.get_backend().features
+        ),  # the live backend: some add strings when the engine starts (`imports`)
         "wasi": _wasi(backend),
         "features": features,
     }
