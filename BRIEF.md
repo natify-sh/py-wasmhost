@@ -43,6 +43,7 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
 
 * The package depends only on `fusedwasi`. Engines (wasmtime, pywasm3, PyGObject, rubicon-objc) are optional extras or dev dependencies; a backend whose engine is missing says so and is skipped, never a crash.
 * Python 3.10 and the standard library only in the package: it must run in Pythonista.
+* The work is spec-driven: a change of a contract has an approved spec in `docs/specs/` before the code.
 * A feature comes with tests, a self-test step, a probe in SUPPORTS.md and the README/BACKLOG ([BACKLOG.md](BACKLOG.md), "Rule: the self-test ships together with the feature").
 * One backend takes one call at a time; no threads by default.
 * What an engine can not do is a `NotImplementedError` and `supports(...) == False`, never a silent no-op.
@@ -57,6 +58,7 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
 | the direction and the order of work | `ROADMAP.md` |
 | every item, its history, the working rules of the owner | `BACKLOG.md` |
 | what each backend supports (from CI) | `SUPPORTS.md` |
+| the contract of a change, written before the code | `docs/specs/` (index and rules in `docs/specs/README.md`) |
 | the WASI host | `README.md` ("WASI"), `src/wasmhost/wasi/preview1.py`, `tests/data/wasi` (the specification's witx files) |
 | the examples | `examples/`, `README.md` ("Try it on a device") |
 

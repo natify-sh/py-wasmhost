@@ -7,9 +7,10 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 
 You implement exactly one step of the wasmhost project, described in the brief you were given.
 
-Before you start: read `BRIEF.md` and the files the brief lists under "Read first". Do not read the whole repository.
+Before you start: read `BRIEF.md`, the spec the brief names under "Spec:" (`docs/specs/`, status `approved`; if it is only a draft, or there is none and the step changes a contract, stop and report) and the files the brief lists under "Read first". Do not read the whole repository.
 
 Rules:
+- Implement the spec, not more. A contract is changed in the spec first: if the code needs the contract to differ, stop and report.
 - Stay inside the brief's Scope. Do not change anything listed as Out of scope.
 - Make the smallest change that makes the Acceptance commands pass. No code for later, no new module, class, layer or option the brief does not ask for, no abstraction before its second use, no reformatting
   of code you did not need to touch.

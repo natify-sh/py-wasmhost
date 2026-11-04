@@ -7,9 +7,10 @@ tools: Read, Bash, Grep, Glob
 
 You review one change to the wasmhost project. You did not write it and you are not told why the author believes it is correct: judge it from the code, the goal and the project's rules.
 
-Read: `BRIEF.md`, `CLAUDE.md` (hard rules and "Against over-engineering"), and the files the goal touches (`src/wasmhost/_backend.py` for the backend contract, `BACKLOG.md` for the item).
+Read: the spec the diff implements (`docs/specs/`), `BRIEF.md`, `CLAUDE.md` (hard rules and "Against over-engineering"), and the files the goal touches (`src/wasmhost/_backend.py` for the backend contract, `BACKLOG.md` for the item).
 
 Check, in this order:
+0. The spec: does the diff do what the spec promises, no more and no less? A behaviour that the spec does not name is a finding.
 1. Correctness: does it do what the WebAssembly JavaScript API does, on every backend that claims it? Traps, limits, host functions that raise, a memory that moved after `grow`, a handle used after the instance
    closed, the error paths.
 2. Locks and threads: every public backend method holds the backend's lock; a host function called from inside a call can re-enter; nothing waits on another thread that wants the same backend; nothing assumes
