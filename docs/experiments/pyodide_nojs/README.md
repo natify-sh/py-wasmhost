@@ -24,8 +24,8 @@ engine (Node) only runs the WebAssembly: `Py_Initialize`, then `PyRun_SimpleStri
 * The 280 `GOT.func` globals are filled by hand with table slots of the module's own functions (what the Emscripten loader does).
 * `_PyEM_TrampolineCall_JS(func, a, b, c)` is what `wasmTable.get(func)(a, b, c)` is in JavaScript: a call that drops extra arguments and fills missing ones. The host reads the
   type of the table entry from the module (`wasm-tools print`) and calls with that many arguments. The same thing is what `bitarray.tolist` needs in `docs/experiments/dlopen`.
-* About 20 calls are really answered: `environ_*`, `clock_time_get`, `random_get`, `fd_*`, `__syscall_{getcwd,openat,stat64,lstat64,fstat64,newfstatat,readlinkat,faccessat,getdents64,ioctl,fcntl64}`, time and heap calls.
-  Everything else (about 230 imports, among them the whole bridge to JavaScript: `Js*`, `hiwire_*`, `pyproxy_*`) is a stub that logs and returns 0.
+* 28 of the 268 function imports are really answered: `environ_*`, `clock_time_get`, `random_get`, `fd_*`, `__syscall_{getcwd,openat,stat64,lstat64,fstat64,newfstatat,readlinkat,faccessat,getdents64,ioctl,fcntl64}`, time and heap calls.
+  Everything else (240 imports, among them the bridge to JavaScript, about 130 by name: `Js*`, `Jsv*`, `hiwire_*`, `pyproxy_*`) is a stub that logs and returns 0.
 * The files are a temporary folder with `lib/python314.zip`; no sandbox (a path is only joined to the root).
 
 ## Not done
