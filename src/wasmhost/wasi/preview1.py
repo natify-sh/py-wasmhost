@@ -3,11 +3,11 @@
 The 46 functions of the specification (the `legacy/preview1` witx files of the WebAssembly/WASI repository, branch
 `wasi-0.1`), over directories of the real file system, with standard streams, arguments, an environment, clocks and
 random bytes. The calls themselves are those of the package `fusedwasi` (the Python twin of the C core that `wasmext`
-builds into its modules): one `fusedwasi.State` (one class for WASI 0.1 and 0.2) for the world of the program (arguments, environment, files,
-streams) and one `Guest` for each instance that uses it; this module is the shape `wasmhost` gives them: the options
-of the host (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), the import objects of the engines,
-and the tables of the specification. Sockets are not supported (`ENOTSOCK`). The first snapshot, `wasi_unstable` (what
-older toolchains still produce), is offered too, from the same object: see UNSTABLE below for the four things in which
+builds into its modules): one `fusedwasi.State` (one class for WASI 0.1 and 0.2) for the world of the program
+(arguments, environment, files, streams) and one `Guest` for each instance that uses it; this module is the shape
+`wasmhost` gives them: the options of the host (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`),
+the import objects of the engines, and the tables of the specification. Sockets are not supported (`ENOTSOCK`).
+The first snapshot, `wasi_unstable` (what older toolchains still produce), is offered too, from the same object: see UNSTABLE below for the four things in which
 it differs.
 
     wasi = Preview1(args=["prog", "-v"], preopens={"/": "some/dir"}, stdout=sys.stdout.buffer.write)
