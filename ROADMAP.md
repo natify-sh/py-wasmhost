@@ -29,12 +29,12 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 | Item | What it is | Waits for |
 |---|---|---|
-| **WASI 0.2 imports** | the flat `wasi:*` imports of a fused module of 0.2 answered from the `State` of `Preview1` (S0001) | fusedwasi has them and `find_import` resolves them; wasmhost has to offer them and test them on every backend that takes host functions; questions of S0001 first |
+| **WASI 0.2 imports** | the flat `wasi:*` imports of a fused module of 0.2 answered from the `State` of `Preview1` (S0001) | **B-603 first**: a fused module has a memory for each component and fusedwasi takes the list of them, but the API reaches only an exported memory; and the engines: multi-memory runs on wasmtime, Node, Bun, wasm3 and Pyodide, **not on the JavaScriptCore family** (so not in Pythonista) |
 | **B-604** | GC types: not added to wasmhost and not tested in it yet (the parser refuses the type forms), while wasmtime, Node and Bun run such a module directly | the parser (`_binary.py`) and tests per backend first; then a model of references in the API, which is the engines' (a GC reference has no Python value) |
 | **B-203** | `externref` and `funcref` as values of globals, and across instances | the engines and the API: reference types run inside a module on every backend measured in SUPPORTS.md, but no value of that kind crosses the Python API. Deferred 2026-10-16: no consumer, none expected |
 | **B-601** | exceptions: `WebAssembly.Tag` and `WebAssembly.Exception` in the API | the engines that have them (SUPPORTS.md: `exceptions-exnref`, `legacy-exceptions`) |
 | **B-602** | SIMD (`v128`) as a value, shared memory and threads | the engines: the JavaScript engines have them, wasm3 has not SIMD; a shared `Memory` is a `NotImplementedError` today |
-| **B-603** | `memory64` and multi-memory in the API | the engines (SUPPORTS.md: Bun does not run `memory64`); the modules that use them run on the backends that say "yes" there, the API has no 64-bit sizes yet |
+| **B-603** | `memory64` and multi-memory in the API (multi-memory is the prerequisite of WASI 0.2, S0001) | the engines (SUPPORTS.md: Bun does not run `memory64`); the modules that use them run on the backends that say "yes" there, the API has no 64-bit sizes yet |
 | **B-605** | custom page sizes | an engine that takes such a module (none does in SUPPORTS.md) |
 | **B-303** | batch `read`/`write` of many regions | nothing: a speed matter, deferred until it is needed |
 | **B-503** | a sandbox with `openat` and `dir_fd` | nothing: it is the file system of the WASI host |
