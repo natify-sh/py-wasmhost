@@ -19,12 +19,28 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from fusedwasi import Exit
+
 from . import BACKENDS, Instance, Module, Trap, WasmError, get_backend, set_backend
+from .wasi._flavor import network_options, wasi_flavor
 from .wasi.preview1 import Preview1, WasiExit
+from .wasi.preview2 import Preview2
 
 # The options that take a value: the command line is split before argparse sees it, to find the module.
 VALUE_OPTIONS = frozenset(
-    {"--argv0", "--backend", "--runtime", "--dir", "--env", "--invoke", "--max-memory", "--timeout", "--fuel"}
+    {
+        "--argv0",
+        "--backend",
+        "--runtime",
+        "--dir",
+        "--env",
+        "--invoke",
+        "--max-memory",
+        "--timeout",
+        "--fuel",
+        "-S",
+        "--wasi",
+    }
 )
 INFO_OPTIONS = frozenset({"-h", "--help"})
 TRAP_EXIT = 3 if os.name == "nt" else 134  # what wasmtime exits with on a trap (abort(): SIGABRT, or 3 on Windows)
@@ -71,6 +87,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--inherit-env", action="store_true", help="give the program all the variables of this process (--env wins)"
     )
     parser.add_argument("--argv0", metavar="ARGV0", help="the program's argv[0] (default: the module's path)")
+    parser.add_argument(
+        "-S",
+        "--wasi",
+        action="append",
+        default=[],
+        metavar="KEY[=VALUE][,KEY...]",
+        help="WASI 0.2 network flags as wasmtime's -S: inherit-network, allow-ip-name-lookup, tcp, udp",
+    )
     parser.add_argument("--invoke", metavar="FUNCTION", help="call an exported function with the arguments")
     parser.add_argument("--max-memory", type=int, metavar="PAGES", help="the most 64 KiB pages a memory may have")
     parser.add_argument("--timeout", type=float, metavar="SECONDS", help="stop the program after that long")
@@ -241,35 +265,50 @@ def run(host_args: Sequence[str], path: str, program_args: Sequence[str]) -> int
         for key, value in (("max_memory", args.max_memory), ("timeout", args.timeout), ("fuel", args.fuel))
         if value is not None
     }
+    flavor = wasi_flavor(wasm)
     try:
+        if flavor == "component":
+            raise ValueError(
+                "this is a component, not a core module: make a core module of it first "
+                "(`wasm-tools component unbundle`, or `meld fuse` for several components)"
+            )
+        if flavor == "core-0.3":
+            raise ValueError("WASI 0.3 is not supported")
+        network = network_options(args.wasi)
+        if args.wasi and flavor != "core-0.2":
+            raise ValueError("the network flags are for modules of WASI 0.2")
         if args.backend:
             set_backend(args.backend)
         else:
             get_backend()
         module = Module(wasm)
-        wasi = Preview1(
-            args=[args.argv0 if args.argv0 is not None else os.path.basename(path), *program_args],
-            env=_environment(args.env, args.inherit_env),
-            preopens=_preopens(args.dir),
-            stdin=_stdin(sys.stdin),
-            stdout=_write(sys.stdout),
-            stderr=_write(sys.stderr),
-            readonly=args.readonly,
-        )
+        common: dict[str, Any] = {
+            "args": [args.argv0 if args.argv0 is not None else os.path.basename(path), *program_args],
+            "env": _environment(args.env, args.inherit_env),
+            "preopens": _preopens(args.dir),
+            "stdin": _stdin(sys.stdin),
+            "stdout": _write(sys.stdout),
+            "stderr": _write(sys.stderr),
+            "readonly": args.readonly,
+        }
+        wasi: Preview1 | Preview2 = Preview2(**common, **network) if flavor == "core-0.2" else Preview1(**common)
         with wasi:
-            instance = Instance(module, wasi.imports(), **options)
+            imports = wasi.imports(module) if isinstance(wasi, Preview2) else wasi.imports()
+            instance = Instance(module, imports, **options)
             try:
                 wasi.bind(instance)
-            except AttributeError:  # no memory exported: nothing for the calls to read
+            except (AttributeError, KeyError):  # no memory exported: nothing for the calls to read
                 pass
             if args.invoke:
                 try:
                     lines = _invoke(instance, module, args.invoke, program_args)
-                except WasiExit as exit_:
+                except (WasiExit, Exit) as exit_:
                     return exit_.code
                 for line in lines:
                     print(line)
                 return 0
+            if isinstance(wasi, Preview2):
+                return wasi.start(instance)
             return _start(wasi, instance)
     except Trap as exc:
         print(f"Error: {exc}", file=sys.stderr)

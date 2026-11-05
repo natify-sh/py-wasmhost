@@ -583,7 +583,7 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 - **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=` and `http_check=` pass through to fusedwasi's `State`, but `wasi:http` is still in progress there and has not been run through wasmhost: do not rely on it yet. A blocking socket call holds the backend (one call at a time).
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
 - **Try it:** `python examples/wasi2.py hello` (a WASI 0.2 program says hello), `python examples/wasi2.py sock` (a TCP client: the network is denied) and `python examples/wasi2.py sock --network` (it connects to a local server); see `examples/wasi2/README.md`.
-- Not built yet: the command line (`wasmhost run`, `-S` flags) and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
+- Not built yet: `-S http` and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
 
 ## Try it on a device
 
@@ -609,8 +609,10 @@ there as `wasmhost self test` and `wasmhost bench`.
 command (`wasmhost.wasi.Preview1`) and its exit code is the command's; `--invoke FUNCTION` calls an exported function
 instead, the words after the module being its arguments (`wasmhost run --invoke add m.wasm 2 3` prints `5`; one result
 per line, a float as Rust prints it: `0.5`, `NaN`, `inf`). Options: `--backend`, `--dir HOST[::GUEST]` (repeatable),
-`--readonly`, `--env NAME[=VALUE]`, `--inherit-env` (all the variables of the process; `--env` wins), `--argv0 NAME` (the default is the module's file name), `--max-memory PAGES`, `--timeout SECONDS`, `--fuel UNITS`. `--runtime NAME` is `--backend NAME`. A trap exits with 134, as in
+`--readonly`, `--env NAME[=VALUE]`, `--inherit-env` (all the variables of the process; `--env` wins), `--argv0 NAME` (the default is the module's file name), `--max-memory PAGES`, `--timeout SECONDS`, `--fuel UNITS`., `-S KEY[=VALUE][,KEY...]` (WASI 0.2 only). `--runtime NAME` is `--backend NAME`. A trap exits with 134, as in
 wasmtime; any other error with 1. Everything after the module belongs to the program. Only the WASI functions are provided: a module that imports others (`examples/coremark.py`'s `env.clock_ms`) does not link, as in `wasmtime`; programs like that are run from Python, as the examples do.
+
+A core module of WASI 0.2 (imports `wasi:*@0.2.N`, as `wasm-tools component unbundle` leaves it for one component) is told from one of 0.1 by its imports and runs on `Preview2`: it calls `wasi:cli/run#run`, and `--invoke` works as above. The network is denied; Wasmtime's `-S` flags open it: `-S inherit-network` (all addresses, TCP and UDP; the name lookup stays off), `-S allow-ip-name-lookup`, `-S tcp=n` and `-S udp=n` (refuse that kind again; `tcp` alone changes nothing), several in one `-S` with commas. `-S http` is not there yet. Three errors, each exit 1: a component (make a core module of it with `wasm-tools component unbundle` or `meld fuse`), a module of WASI 0.3 ("WASI 0.3 is not supported"), and `-S` on a module that is not of WASI 0.2.
 
 `python -m wasmhost bench [--backend NAME] [--no-jit] [--buffer KIB]` times a call, a batch of three, moving a buffer in and
 out of memory (MB/s) and the engine itself (a recursive
