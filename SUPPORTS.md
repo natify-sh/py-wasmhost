@@ -53,7 +53,7 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 | `import.global` | yes | yes | yes | no | yes | yes | yes | yes |
 | `import.memory` | yes | yes | yes | no | yes | yes | yes | yes |
 | `import.table` | yes | yes | yes | no | yes | yes | yes | yes |
-| `imports` | yes | yes | yes | yes | yes | no | yes* | yes |
+| `imports` | yes | yes | yes | yes | yes | no | yes | yes |
 | `isolated` | yes | no | no | yes | no | no | no | no |
 | `memory.grow` | yes | yes | yes | no | yes | yes | yes | yes |
 | `memory.view` | yes | no | no | yes | no | no | no | no |
@@ -67,16 +67,14 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 |---|---|---|---|---|---|---|---|---|
 | `wasi_snapshot_preview1`: arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
 
-\* `jscontext` / `imports`: corrected by hand to "yes" (the owner, 2026-11-05). The first CI run read `features` from the class, and `jscontext` adds `imports` only when its engine starts (`_js.py`); the WASI program ran on it in the same run. The next run (the test now reads the live backend) writes this cell itself.
-
-Measured by CI: 38 different lines of the log, from these combinations:
-- `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
-- `node`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
-- `bun`: Darwin, Linux; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
-- `wasm3`: Darwin, Linux, Windows; CPython 3.15.2
-- `jsc`: Darwin, Linux, Linux (JIT off); CPython 3.10.22, CPython 3.12.3, CPython 3.15.2, PyPy 3.11.17
+Measured by CI: 43 different lines of the log, from these combinations:
+- `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
+- `node`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
+- `bun`: Darwin, Linux; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
+- `wasm3`: Darwin, Linux, Windows; CPython 3.15.1, CPython 3.15.2
+- `jsc`: Darwin, Linux, Linux (JIT off); CPython 3.10.22, CPython 3.12.3, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
 - `gi-jsc`: Linux, Linux (JIT off); CPython 3.12.3
-- `jscontext`: Darwin; CPython 3.10.22, CPython 3.15.2
+- `jscontext`: Darwin; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2
 - `pyodide`: Emscripten; CPython 3.14.2
 <!-- probe:end -->
 
@@ -97,7 +95,7 @@ From the CI run of `fde7d0d` (all jobs of Tests green). What the tables say:
   on a Mac is a real JSContext with the JIT on.
 * **Windows, PyPy and the Python versions** (3.10, 3.15, 3.15t, PyPy 3.11) gave the same answers as Linux for `wasmtime`, `node` and `wasm3`; the list under the tables names every combination that was run.
 
-**`supports(...)`**: written from the first run, with the one cell marked `*` corrected; the paragraph about it is written after the next run.
+**`supports(...)`** (run of `ba0d070`, which reads the live backend; the same on every OS): host functions (`imports`, and so WASI) are there on every backend but `gi-jsc`, which is why the WASI program ran on seven of the eight; `jscontext` has `imports` once its engine has started. `wasm3` has none of `import.global`, `import.memory`, `import.table`, `table.funcs`, `table.length` and `memory.grow` from Python (the objects made on their own and the tables are not in pywasm3). `table.signatures` is `wasmtime` alone; `timeout` is `wasmtime`, `node` and `wasm3`; `fuel` and `isolated` are `wasmtime` and `wasm3`; `memory.view` is `wasmtime` and `wasm3`; and `threads` (calls from several Python threads) is `wasmtime`, `node` and `bun`.
 
 ## WASI
 
