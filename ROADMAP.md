@@ -27,7 +27,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 - **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`).
 - Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added to wasmhost yet.
 
-- **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime (`http` waits for fusedwasi).
+- **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime and `http` (step C, built: tested through the `http_send` hook, not against a real server; fusedwasi calls `wasi:http` unstable).
 
 ## What is next, in this order
 
@@ -36,7 +36,6 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 | **A real application on `Preview2`** | CPython built for `wasm32-wasip2` (wasi-sdk 34), unbundled, run through `Preview2`: the proof that it is more than small examples | the owner's go; the build of CPython may need patches |
 | **S0001 path 2** | several components: `Preview2` reads `meld`'s import map (`comp` is the `memory.index` of an import; the `$N` of a name is stripped); not for JavaScriptCore | S0003 (done); a run with real WASI calls through the map (the one made so far called none) |
 | **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | the application above; written from what runs |
-| **`wasi:http`, `-S http`** (S0001 step C) | `Preview2` takes `http_send` as well as `http`/`http_check`; `wasmhost run -S http`; a test through the `http_send` hook | fusedwasi 0.1.0b2 has `wasi:http` (63 imports) but calls it unstable; the spec step C is being built |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
 | **B-303, B-503, B-701x** | batch read and write, an `openat` sandbox, Deno / a pure-Python interpreter / Android | nothing in principle |

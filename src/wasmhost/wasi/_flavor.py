@@ -1,4 +1,4 @@
-"""What `wasmhost run` reads from the bytes and the `-S` words before it runs a module (S0001, step B)."""
+"""What `wasmhost run` reads from the bytes and the `-S` words before it runs a module (S0001, steps B and C)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _TCP_USES = frozenset({USE_TCP_BIND, USE_TCP_CONNECT})
 _UDP_USES = frozenset({USE_UDP_BIND, USE_UDP_CONNECT, USE_UDP_OUTGOING})
 _YES = frozenset({"y", "yes", "true", "on", "1"})
 _NO = frozenset({"n", "no", "false", "off", "0"})
-KEYS = ("inherit-network", "allow-ip-name-lookup", "tcp", "udp")
+KEYS = ("inherit-network", "allow-ip-name-lookup", "tcp", "udp", "http")
 
 
 def wasi_flavor(data: bytes) -> str:
@@ -61,6 +61,8 @@ def network_options(flags: Sequence[str]) -> dict[str, Any]:
         options["allow_ip_name_lookup"] = False  # as Wasmtime: the lookup is a flag of its own
     if "allow-ip-name-lookup" in given:
         options["allow_ip_name_lookup"] = given["allow-ip-name-lookup"]
+    if "http" in given:
+        options["http"] = given["http"]  # a switch of its own: it opens no socket and needs no inherit-network
     refused: frozenset[int] = frozenset()
     if given.get("tcp") is False:
         refused |= _TCP_USES

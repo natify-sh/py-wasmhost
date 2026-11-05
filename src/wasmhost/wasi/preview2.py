@@ -8,7 +8,8 @@ arguments and streams of `p1`.
     code = Preview2(args=["prog"], env={"A": "1"}, stdout=sys.stdout.buffer.write).run(Module(wasm))
 
 The network is denied unless the host says so: `network=True` opens it, `socket_addr_check(ip, port, use)` decides each
-bind or connect (what `network` says is then the check's), `http=True` and `http_check` are the same for `wasi:http`.
+bind or connect (what `network` says is then the check's), `http=True` and `http_check` are the same for `wasi:http`
+(`http_send(request) -> response` replaces the transport; `wasi:http` is unstable in fusedwasi).
 """
 
 from __future__ import annotations
@@ -26,8 +27,9 @@ from .preview1 import MASK32, MASK64, make_state
 
 class Preview2:
     """The `wasi:*` calls of one program run (a core module of one component). The options of `Preview1`, and the
-    policy: `network`, `socket_addr_check`, `allow_ip_name_lookup`, `http`, `http_check`, as fusedwasi's `State` names
-    them (all deny). `state=` shares a `State` (its owner closes it; no other option is then given, as in `Preview1`).
+    policy: `network`, `socket_addr_check`, `allow_ip_name_lookup`, `http`, `http_check`, `http_send`, as fusedwasi's
+    `State` names them (all deny). `state=` shares a `State` (its owner closes it; no other option is then given, as in
+    `Preview1`).
 
     `run(module)` returns the result of the export `wasi:cli/run@0.2.N#run`: 0 is `ok`, 1 is `err` (the value `main`
     returned does not come out of it), or the code that `wasi:cli/exit` was given."""
@@ -47,6 +49,7 @@ class Preview2:
         allow_ip_name_lookup: bool | None = None,
         http: bool = False,
         http_check: Callable[[str, str], bool] | None = None,
+        http_send: Callable[[Any], Any] | None = None,
         state: State | None = None,
     ) -> None:
         policy = {
@@ -55,10 +58,24 @@ class Preview2:
             "allow_ip_name_lookup": allow_ip_name_lookup,
             "http": http,
             "http_check": http_check,
+            "http_send": http_send,
         }
         self._owns_state = state is None
         if state is not None:
-            given = [args, env, preopens, stdin, stdout, stderr, readonly, network, socket_addr_check, http, http_check]
+            given = [
+                args,
+                env,
+                preopens,
+                stdin,
+                stdout,
+                stderr,
+                readonly,
+                network,
+                socket_addr_check,
+                http,
+                http_check,
+                http_send,
+            ]
             if any(given) or allow_ip_name_lookup is not None:
                 raise TypeError("state= is the whole world of the program: no other option is given with it")
         else:

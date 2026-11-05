@@ -61,6 +61,15 @@ def test_no_values(word: str) -> None:
     assert "network" not in network_options([f"inherit-network={word}"])
 
 
+def test_http_is_a_switch_of_its_own() -> None:
+    assert network_options(["http"]) == {"http": True}  # no socket is opened
+    assert network_options(["http=y"]) == network_options(["http=on"]) == {"http": True}
+    assert network_options(["http=n"]) == {"http": False}
+    assert network_options(["inherit-network"]) == {"network": True, "allow_ip_name_lookup": False}  # no http
+    assert network_options(["http,inherit-network,tcp=n"])["http"] is True
+    assert network_options(["inherit-network", "http=n"])["http"] is False
+
+
 def test_tcp_and_udp_off_become_an_address_check() -> None:
     check = network_options(["inherit-network,tcp=n"])["socket_addr_check"]
     assert [check("1.2.3.4", 1, use) for use in TCP] == [False, False]
@@ -74,9 +83,8 @@ def test_tcp_and_udp_off_become_an_address_check() -> None:
 
 
 def test_an_unknown_key_is_named() -> None:
-    for word in ("http", "inherit-networks"):
-        with pytest.raises(ValueError, match=f"`{word}`.*inherit-network, allow-ip-name-lookup, tcp, udp"):
-            network_options([f"inherit-network,{word}"])
+    with pytest.raises(ValueError, match="`inherit-networks`.*inherit-network, allow-ip-name-lookup, tcp, udp, http"):
+        network_options(["inherit-network,inherit-networks"])
     with pytest.raises(ValueError, match="not a yes or a no"):
         network_options(["tcp=maybe"])
 
@@ -184,6 +192,25 @@ def test_network_flags_on_a_wasi_01_module_are_an_error(
     assert "the network flags are for modules of WASI 0.2" in capsys.readouterr().err
 
 
+def test_http_is_denied_without_the_flag(session: str, need_imports: None) -> None:
+    assert run(session, str(DATA / "http.wasm")) == 1  # `handle` gave HTTP-request-denied
+    assert run(session, "-S", "inherit-network", str(DATA / "http.wasm")) == 1
+    assert run(session, "-S", "http=n", str(DATA / "http.wasm")) == 1
+    assert (
+        run(session, "-S", "http", str(DATA / "http.wasm")) == 0
+    )  # sent to 127.0.0.1:9: the refusal is the answer, not the call
+
+
+def test_http_flag_on_a_wasi_01_module_is_an_error(
+    capsys: pytest.CaptureFixture[str], session: str, tmp_path: Path
+) -> None:
+    path = tmp_path / "hello.wasm"
+    path.write_bytes(wb.wasi_hello())
+    assert run(session, "-S", "http", str(path)) == 1
+    assert "the network flags are for modules of WASI 0.2" in capsys.readouterr().err
+
+
 def test_an_unknown_flag_is_an_error(capsys: pytest.CaptureFixture[str], session: str) -> None:
-    assert run(session, "-S", "http", str(DATA / "one.wasm")) == 1
-    assert "unknown -S flag `http`" in capsys.readouterr().err
+    assert run(session, "-S", "htp", str(DATA / "one.wasm")) == 1
+    err = capsys.readouterr().err
+    assert "unknown -S flag `htp`" in err and "http" in err

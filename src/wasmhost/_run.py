@@ -93,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="KEY[=VALUE][,KEY...]",
-        help="WASI 0.2 network flags as wasmtime's -S: inherit-network, allow-ip-name-lookup, tcp, udp",
+        help="WASI 0.2 network flags as wasmtime's -S: inherit-network, allow-ip-name-lookup, tcp, udp, http",
     )
     parser.add_argument("--invoke", metavar="FUNCTION", help="call an exported function with the arguments")
     parser.add_argument("--max-memory", type=int, metavar="PAGES", help="the most 64 KiB pages a memory may have")
