@@ -1,0 +1,83 @@
+{
+  "imports": [
+    {
+      "component": 0,
+      "encoding": "utf8",
+      "index": 0,
+      "kind": "wasi",
+      "memory": null,
+      "module": "wasi:cli/stdout@0.2.12",
+      "name": "get-stdout",
+      "realloc": null
+    },
+    {
+      "component": 0,
+      "encoding": "utf8",
+      "index": 1,
+      "kind": "wasi",
+      "memory": {
+        "export": "memory$0",
+        "index": 1
+      },
+      "module": "wasi:cli/environment@0.2.12",
+      "name": "get-arguments",
+      "realloc": {
+        "export": "cabi_realloc$1",
+        "func": 33
+      }
+    },
+    {
+      "component": 0,
+      "encoding": "utf8",
+      "index": 2,
+      "kind": "wasi",
+      "memory": {
+        "export": "memory$0",
+        "index": 1
+      },
+      "module": "wasi:io/streams@0.2.12",
+      "name": "[method]output-stream.blocking-write-and-flush",
+      "realloc": null
+    },
+    {
+      "component": 2,
+      "encoding": "utf8",
+      "index": 3,
+      "kind": "wasi",
+      "memory": null,
+      "module": "wasi:cli/stdout@0.2.12",
+      "name": "get-stdout$2",
+      "realloc": null
+    },
+    {
+      "component": 2,
+      "encoding": "utf8",
+      "index": 4,
+      "kind": "wasi",
+      "memory": {
+        "export": "memory",
+        "index": 0
+      },
+      "module": "wasi:cli/environment@0.2.12",
+      "name": "get-arguments$2",
+      "realloc": {
+        "export": "cabi_realloc",
+        "func": 11
+      }
+    },
+    {
+      "component": 2,
+      "encoding": "utf8",
+      "index": 5,
+      "kind": "wasi",
+      "memory": {
+        "export": "memory",
+        "index": 0
+      },
+      "module": "wasi:io/streams@0.2.12",
+      "name": "[method]output-stream.blocking-write-and-flush$2",
+      "realloc": null
+    }
+  ],
+  "version": 2
+}

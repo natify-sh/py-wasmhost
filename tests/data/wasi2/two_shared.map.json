@@ -1,0 +1,53 @@
+{
+  "imports": [
+    {
+      "also_components": [
+        2
+      ],
+      "component": 0,
+      "encoding": "utf8",
+      "index": 0,
+      "kind": "wasi",
+      "memory": null,
+      "module": "wasi:cli/stdout@0.2.12",
+      "name": "get-stdout",
+      "realloc": null
+    },
+    {
+      "also_components": [
+        2
+      ],
+      "component": 0,
+      "encoding": {
+        "unknown": "failed to encode output module: canon lowers of one fused import disagree on their options (LowerSpec { memory: Some(0), realloc: Some(21), encoding: Utf8 } vs LowerSpec { memory: Some(0), realloc: Some(7), encoding: Utf8 }); a single fused import cannot serve both"
+      },
+      "index": 1,
+      "kind": "wasi",
+      "memory": {
+        "unknown": "failed to encode output module: canon lowers of one fused import disagree on their options (LowerSpec { memory: Some(0), realloc: Some(21), encoding: Utf8 } vs LowerSpec { memory: Some(0), realloc: Some(7), encoding: Utf8 }); a single fused import cannot serve both"
+      },
+      "module": "wasi:cli/environment@0.2.12",
+      "name": "get-arguments",
+      "realloc": {
+        "unknown": "failed to encode output module: canon lowers of one fused import disagree on their options (LowerSpec { memory: Some(0), realloc: Some(21), encoding: Utf8 } vs LowerSpec { memory: Some(0), realloc: Some(7), encoding: Utf8 }); a single fused import cannot serve both"
+      }
+    },
+    {
+      "also_components": [
+        2
+      ],
+      "component": 0,
+      "encoding": "utf8",
+      "index": 2,
+      "kind": "wasi",
+      "memory": {
+        "export": "memory",
+        "index": 0
+      },
+      "module": "wasi:io/streams@0.2.12",
+      "name": "[method]output-stream.blocking-write-and-flush",
+      "realloc": null
+    }
+  ],
+  "version": 2
+}

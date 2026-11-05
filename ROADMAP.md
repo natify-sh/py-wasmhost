@@ -27,6 +27,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 - **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`).
 - Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added to wasmhost yet.
 
+- **WASI 0.2 of several components** (S0004, built 2026-11-05, CI pending): `Preview2(import_map=)` and `wasmhost run --import-map` route each `wasi:*` import by `meld`'s import map; two small components with real WASI calls run on wasmtime, wasm3, Node and Bun here; not on JavaScriptCore (several memories).
 - **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime and `http` (step C, built: tested through the `http_send` hook, not against a real server; fusedwasi calls `wasi:http` unstable).
 - **A real application on `Preview2`** (built 2026-11-05, CI green on `b50b8aa`): the official CPython built for `wasm32-wasip2` with wasi-sdk 34 and no patch, unbundled, run by `examples/cpython/run2.py` (`python2.wasm`, 8 MB, committed); wasmtime, wasm3, Node verified by hand, Bun by `tests/test_cpython_wasip2_example.py`. The exit code is only 0 or 1 (the interface of `wasi:cli/run`). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 
@@ -34,7 +35,6 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 | Step | What it is | Waits for |
 |---|---|---|
-| **S0001 path 2** | several components: `Preview2` reads `meld`'s import map (`comp` is the `memory.index` of an import; the `$N` of a name is stripped); not for JavaScriptCore | S0003 (done); a run with real WASI calls through the map (the one made so far called none) |
 | **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | the application above (done); written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |

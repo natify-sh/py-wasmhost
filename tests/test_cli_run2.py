@@ -214,3 +214,32 @@ def test_an_unknown_flag_is_an_error(capsys: pytest.CaptureFixture[str], session
     assert run(session, "-S", "htp", str(DATA / "one.wasm")) == 1
     err = capsys.readouterr().err
     assert "unknown -S flag `htp`" in err and "http" in err
+
+
+def test_import_map_runs_a_module_of_several_components(
+    capsys: pytest.CaptureFixture[str], session: str, need_imports: None
+) -> None:
+    module, invoke = str(DATA / "two_multi.wasm"), ["--invoke", "demo:m/app@0.1.0#run"]
+    if run(session, "--import-map", str(DATA / "two_multi.map.json"), *invoke, module) != 0:
+        err = capsys.readouterr().err
+        if "memor" in err:  # S0003: the JavaScriptCore engines refuse several memories
+            pytest.skip(err)
+        raise AssertionError(err)
+    out = capsys.readouterr().out.splitlines()
+    assert [line.split()[0] for line in out] == ["A-text-ALPHA", "B-text-BRAVO", "A-after-add", "42"]
+
+
+def test_several_components_without_an_import_map_are_refused(
+    capsys: pytest.CaptureFixture[str], session: str, need_imports: None
+) -> None:
+    assert run(session, "--invoke", "demo:m/app@0.1.0#run", str(DATA / "two_multi.wasm")) == 1
+    assert "give import_map=" in capsys.readouterr().err
+
+
+def test_import_map_on_a_wasi_01_module_is_an_error(
+    capsys: pytest.CaptureFixture[str], session: str, tmp_path: Path
+) -> None:
+    path = tmp_path / "hello.wasm"
+    path.write_bytes(wb.wasi_hello())
+    assert run(session, "--import-map", str(DATA / "two_multi.map.json"), str(path)) == 1
+    assert "--import-map is for modules of WASI 0.2" in capsys.readouterr().err

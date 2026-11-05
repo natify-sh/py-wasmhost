@@ -1,0 +1,5 @@
+package demo:m@0.1.0;
+interface math { add: func(a: u32, b: u32) -> u32; }
+interface app { run: func() -> u32; }
+world b { import wasi:cli/environment@0.2.12; import wasi:cli/stdout@0.2.12; import wasi:io/streams@0.2.12; export math; }
+world a { import wasi:cli/environment@0.2.12; import wasi:cli/stdout@0.2.12; import wasi:io/streams@0.2.12; import math; export app; }

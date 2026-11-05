@@ -36,8 +36,7 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
   `wasi_unstable` (`Preview1`) and WASI 0.2 of one component (`Preview2`, with the network denied by default) on fusedwasi 0.1.0b2; the CLI (WASI 0.1 and 0.2; `-S` network flags and `-S http`, fusedwasi's `wasi:http` being unstable); examples (coreutils, wasm-clang, CPython for WASI, a shell for Pythonista,
   a WASI 0.2 one).
 * **What each backend supports now** is in [SUPPORTS.md](SUPPORTS.md), measured by CI (`tests/test_feature_probes.py`), not copied from any site.
-* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): a real application on `Preview2` (CPython for wasip2); several components through `meld`'s
-  import map (S0001 path 2); the guide to components (B-608); then GC types (B-604) and the features the engines have and the API lacks (B-601, B-602, memory64, B-605). A feature is taken when a real module needs it.
+* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): a real application on `Preview2` (CPython for wasip2); the guide to components (B-608); then GC types (B-604) and the features the engines have and the API lacks (B-601, B-602, memory64, B-605). A feature is taken when a real module needs it.
 * **Waiting for the owner:** the release with the Pythonista fix (a standard stream with no `.buffer`); the pull request of the branch `fusedwasi-p1` into `main`.
 
 ## Hard rules (short form; the full list is in CLAUDE.md)

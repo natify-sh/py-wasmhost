@@ -34,6 +34,7 @@ VALUE_OPTIONS = frozenset(
         "--runtime",
         "--dir",
         "--env",
+        "--import-map",
         "--invoke",
         "--max-memory",
         "--timeout",
@@ -94,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="KEY[=VALUE][,KEY...]",
         help="WASI 0.2 network flags as wasmtime's -S: inherit-network, allow-ip-name-lookup, tcp, udp, http",
+    )
+    parser.add_argument(
+        "--import-map",
+        metavar="PATH",
+        help="WASI 0.2: the file `meld fuse --emit-import-map` wrote, for a module fused from several components",
     )
     parser.add_argument("--invoke", metavar="FUNCTION", help="call an exported function with the arguments")
     parser.add_argument("--max-memory", type=int, metavar="PAGES", help="the most 64 KiB pages a memory may have")
@@ -277,6 +283,8 @@ def run(host_args: Sequence[str], path: str, program_args: Sequence[str]) -> int
         network = network_options(args.wasi)
         if args.wasi and flavor != "core-0.2":
             raise ValueError("the network flags are for modules of WASI 0.2")
+        if args.import_map and flavor != "core-0.2":
+            raise ValueError("--import-map is for modules of WASI 0.2")
         if args.backend:
             set_backend(args.backend)
         else:
@@ -291,7 +299,9 @@ def run(host_args: Sequence[str], path: str, program_args: Sequence[str]) -> int
             "stderr": _write(sys.stderr),
             "readonly": args.readonly,
         }
-        wasi: Preview1 | Preview2 = Preview2(**common, **network) if flavor == "core-0.2" else Preview1(**common)
+        wasi: Preview1 | Preview2 = (
+            Preview2(**common, **network, import_map=args.import_map) if flavor == "core-0.2" else Preview1(**common)
+        )
         with wasi:
             imports = wasi.imports(module) if isinstance(wasi, Preview2) else wasi.imports()
             instance = Instance(module, imports, **options)
