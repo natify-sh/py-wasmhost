@@ -62,3 +62,8 @@ answer is:
 3. Should the JavaScriptCore family be given a way out (a module with one memory only), or is "not supported" the answer? Out of this spec's reach: the engine refuses the module.
 
 ## Changes
+
+* 2026-11-05: built as Option A, no new API. `tests/test_multi_memory.py` (a module with three memories, two exported and one not; two imported memories; `max_memory` over three memories; data segments), the builders
+  `three_memories` and `imports_two_memories` in `tests/wasm_builder.py`, and the self-test step "a module with several memories" (`THREE_MEMORIES`; the JavaScriptCore family reports "not available", as documented). The tests skip with
+  the engine's `CompileError` message where the module is refused, and without `import.memory` / `memory.grow` where a backend lacks them. `limit_memory` needed no change: the new tests pass on all four backends and fail
+  when it is made to touch the first memory only. Run locally on wasmtime, Node, Bun and wasm3; CI on the other backends is still to be read.

@@ -202,6 +202,49 @@ def owns_memory(initial: int = 1, maximum: int | None = None) -> bytes:
     return module(types, funcs, [("grow", 0, 0), ("size", 0, 1), ("memory", 2, 0)], memory_limits=limits)
 
 
+def _memory_funcs(count: int) -> tuple[list[Func], list[tuple[str, int, int]]]:
+    """grow<k>(pages) -> i32 and size<k>() -> i32 for each of `count` memories (memory index k)."""
+    funcs: list[Func] = []
+    for k in range(count):
+        funcs += [(0, b"\x20\x00\x40" + uleb(k)), (1, b"\x3f" + uleb(k))]
+    return funcs, [(f"{op}{k}", 0, 2 * k + i) for k in range(count) for i, op in enumerate(("grow", "size"))]
+
+
+def three_memories() -> bytes:
+    """Multi-memory: three memories the module defines, 0 (1 page, at most 4) exported as "a", 1 (2 pages, no maximum)
+    exported as "b", 2 (1 page, no maximum) not exported. grow<k>(pages) -> i32 and size<k>() -> i32 for each of them,
+    load2(addr) -> i32 (a byte of memory 2). Data segments: "AA" at 0 of memory 0, "BB" at 4 of memory 1, "CC" at 8 of
+    memory 2."""
+    types = [functype([I32], [I32]), functype([], [I32])]
+    funcs, exports = _memory_funcs(3)
+    funcs.append(
+        (0, b"\x20\x00\x2d\x40\x02\x00")
+    )  # load2: i32.load8_u, memory 2 (bit 6 of the alignment, then the index)
+    exports += [("load2", 0, 6), ("a", 2, 0), ("b", 2, 1)]
+    memories = [b"\x01\x01\x04", b"\x00\x02", b"\x00\x01"]
+    out = b"\0asm\x01\x00\x00\x00" + section(1, vec(types)) + section(3, vec([uleb(f[0]) for f in funcs]))
+    out += section(5, vec(memories))
+    out += section(7, vec([name(n) + bytes([kind]) + uleb(i) for n, kind, i in exports]))
+    out += section(10, vec([body(f[1]) for f in funcs]))
+    segments = [(0, 0, b"AA"), (1, 4, b"BB"), (2, 8, b"CC")]  # active, with the memory index (flag 2)
+    out += section(
+        11, vec([b"\x02" + uleb(m) + b"\x41" + sleb(at) + b"\x0b" + uleb(len(r)) + r for m, at, r in segments])
+    )
+    return out
+
+
+def imports_two_memories() -> bytes:
+    """Imports the memories env.m0 and env.m1 (1 page each); exports, for each, load<k>(addr) -> i32 (a byte),
+    store<k>(addr, byte), grow<k>(pages) -> i32 and size<k>() -> i32."""
+    types = [functype([I32], [I32]), functype([], [I32]), functype([I32, I32], [])]
+    imports = [name("env") + name(f"m{k}") + b"\x02\x00\x01" for k in range(2)]
+    funcs, exports = _memory_funcs(2)
+    for k in range(2):
+        funcs += [(0, b"\x20\x00\x2d\x40" + uleb(k) + b"\x00"), (2, b"\x20\x00\x20\x01\x3a\x40" + uleb(k) + b"\x00")]
+        exports += [(f"load{k}", 0, 4 + 2 * k), (f"store{k}", 0, 5 + 2 * k)]
+    return module(types, funcs, exports, imports=imports)
+
+
 def spinner() -> bytes:
     """spin() loops forever; quick() -> i32 returns 7; busy(n) -> i32 counts up to n in a loop and returns n."""
     types = [functype([], []), functype([], [I32]), functype([I32], [I32])]

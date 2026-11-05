@@ -98,6 +98,16 @@ OWNS_MEMORY = bytes.fromhex(
     "656d6f727902000a0d020600200040000b04003f000b"
 )
 
+# A module with three memories it defines: 0 (1 page, at most 4) exported as "a", 1 (2 pages) exported as "b",
+# 2 (1 page) not exported; grow<k>(pages) and size<k>() for each, load2(addr) reads a byte of memory 2; the data "AA",
+# "BB", "CC" go to memories 0, 1, 2.
+THREE_MEMORIES = bytes.fromhex(
+    "0061736d01000000010a0260017f017f6000017f03080700010001000100050803010104000200010741090567726f773000"
+    "000573697a653000010567726f773100020573697a653100030567726f773200040573697a65320005056c6f616432000601"
+    "610200016202010a2e070600200040000b04003f000b0600200040010b04003f010b0600200040020b04003f020b08002000"
+    "2d4002000b0b1903020041000b024141020141040b024242020241080b024343"
+)
+
 # A module with spin() that loops forever, quick() -> i32 that returns 7, and busy(n) -> i32 that counts to n.
 SPINNER = bytes.fromhex(
     "0061736d01000000010d036000006000017f60017f017f030403000102071703047370696e000005717569636b00010462"
@@ -258,6 +268,7 @@ def _selftest_backend(backend: Backend, out: Callable[[str], object]) -> _Report
     step("memory: made on its own, imported, shared", lambda: _memory_on_its_own(backend))
     step("memory: the maximum of an imported memory stops the module's grow", lambda: _memory_ceiling(backend))
     step("memory: Instance(max_memory=) is a ceiling for a memory the module makes", lambda: _max_memory(backend))
+    step("memory: a module with several memories, each its own Memory", lambda: _several_memories(backend))
     step("timeout: Instance(timeout=) stops an endless loop, where the engine can", lambda: _timeout(backend))
     step("fuel: Instance(fuel=) stops an endless loop, where the engine can count", lambda: _fuel(backend))
     step("table: made on its own, imported, shared", lambda: _table_on_its_own(backend))
@@ -467,6 +478,25 @@ def _max_memory(backend: Backend) -> str:
     else:
         raise AssertionError("a module that starts over the ceiling was taken")
     return "grow past max_memory answers -1; type() says the maximum that holds; the module is unchanged"
+
+
+def _several_memories(backend: Backend) -> str:
+    try:
+        module = Module(THREE_MEMORIES, backend=backend)
+    except CompileError:
+        if backend.name in ("jsc", "gi-jsc", "jscontext"):
+            return "not available on this backend (the engine refuses a module with several memories), as documented"
+        raise
+    ex = Instance(module, max_memory=3).exports
+    a, b = ex["a"], ex["b"]
+    assert isinstance(a, Memory) and isinstance(b, Memory)
+    _expect((a.read(0, 2), b.read(4, 2), ex.load2(8)), (b"AA", b"BB", ord("C")))  # each segment in its own memory
+    a.write(100, b"first")
+    b.write(100, b"second")
+    _expect((a.read(100, 5), b.read(100, 6)), (b"first", b"second"))
+    _expect((ex.grow1(1), ex.size0(), ex.size1(), ex.size2()), (2, 1, 3, 1))  # grows one memory only
+    _expect((ex.grow0(3), ex.grow1(1), ex.grow2(3)), (-1, -1, -1))  # max_memory holds each of them, exported or not
+    return "each exported memory is a Memory of its own; data, grow and max_memory act on the right one"
 
 
 def _timeout(backend: Backend) -> str:

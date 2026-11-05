@@ -236,6 +236,8 @@ wasmhost.Table(
 ```
 
 An import that is not the right object, is too small for the module or comes from another backend is a `LinkError`.
+
+A module with several memories (multi-memory) needs nothing new: each memory it exports or imports is its own `Memory`, found by its export name (`instance.exports["memory$1"]`) or the one the import object gave, and `max_memory` holds every memory the module defines. A memory that is neither exported nor imported is reachable only through the module's own functions. wasm3 can't import a memory (it can't make one) and the JavaScriptCore engines refuse such a module with a `CompileError`; see [SUPPORTS.md](SUPPORTS.md).
 Only `funcref` tables are supported (no `externref`). `wasm3` has neither (pywasm3 imports functions only:
 `NotImplementedError`).
 
