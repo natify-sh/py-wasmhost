@@ -385,10 +385,7 @@ class Preview1:
                 raise TypeError(
                     "state= is the whole world of the program: args, env, preopens, ... are not given with it"
                 )
-            self.args, self.env = [], []
         else:
-            self.args = [str(a) for a in args]
-            self.env = [f"{k}={v}" for k, v in (env or {}).items()]
             state = make_state(args, env, preopens, stdin, stdout, stderr, readonly)
         self._owns_state = owns_state
         # the world of the program, shared by every instance that is made from this object
@@ -405,6 +402,16 @@ class Preview1:
     @memory.setter
     def memory(self, memory: _Memory | None) -> None:
         self._latest.memory = memory
+
+    @property
+    def args(self) -> list[str]:
+        """The arguments of the program, read from the world (`state`), whether this host made it or was given it."""
+        return [str(a) for a in self._state.args]
+
+    @property
+    def env(self) -> list[str]:
+        """The environment as `NAME=VALUE` strings, read from the world (`state`)."""
+        return [f"{k}={v}" for k, v in self._state.env]
 
     @property
     def state(self) -> State:

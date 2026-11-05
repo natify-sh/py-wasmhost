@@ -213,3 +213,12 @@ def test_a_check_that_denies_is_the_default(session: str, server: list[bytes]) -
         == 1
     )
     assert b"".join(out) == b"connect: Permission denied\n" and server == []
+
+
+def test_a_host_given_a_state_reads_its_arguments_and_environment_from_it() -> None:
+    from wasmhost.wasi import Preview1
+
+    one = Preview1(args=["prog", "-v"], env={"A": "1"})
+    two = Preview1(state=one.state)
+    assert one.args == two.args == ["prog", "-v"]
+    assert one.env == two.env == ["A=1"]
