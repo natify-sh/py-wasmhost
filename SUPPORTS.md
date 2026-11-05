@@ -109,7 +109,7 @@ files in `tests/data/wasi` say (the rows of WASI 0.2 name the commit of their ow
 |---|---|---|
 | `wasi_snapshot_preview1` (0.1) | yes: all 46 functions, `wasmhost.wasi.preview1.Preview1`, over `fusedwasi` | checked against the specification's witx files; the self-test runs a WASI program on every backend |
 | `wasi_unstable` (the first snapshot) | yes: 45 functions (no `sock_accept`) | the same `Preview1` offers both; older toolchains (wasienv, wasm-clang) produce it |
-| files | yes: preopens of real folders; `..` and links that leave a folder are `ENOTCAPABLE`; `readonly=` | on POSIX walked with `openat`; on Windows the check and the open are two steps |
+| files | yes: preopens of real folders; `..` and links that leave a folder are `ENOTCAPABLE`; `readonly=` | on POSIX walked with `openat` (fusedwasi reports a stress run with no escape, not a proof); on Windows the check and the open are two steps, so a preopen is not a barrier against another process that can change the folder; links planted by the guest in a folder shared with another process can lead out (see README, "Folders") |
 | standard streams, arguments, environment, clocks, random | yes | `thread_cputime_id` reads the process clock on Pyodide |
 | sockets in WASI 0.1 | no: `ENOTSOCK` | WASI 0.1 has none to give; use `Preview2` |
 | signals | no: `ENOSYS` | `proc_raise` does not end the program here (it does in `wasmext`) |

@@ -549,9 +549,14 @@ code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `
   (see [WASI 0.2](#wasi-02)); the package exports both classes (`from wasmhost.wasi import Preview1, Preview2`). A class has the version in its name, so one cannot be taken for the other.
 - **Folders.** `preopens` maps the name the program sees to a folder of the host; several can be given, and a name that leaves its
   folder (`..`, an absolute name, a link that points out) is refused with `ENOTCAPABLE`. On POSIX a name is walked from the folder one step at a time with `openat`, and a link met on the way is read and
-  its target put in front of the rest of the name, so there is no gap between the check and the open (a name that passes through a folder that is not there
-  is `ENOENT`, not `ENOTCAPABLE`: it is walked as it comes). On Windows there is no `openat`: a name is resolved by hand and checked against the real
-  paths, and the check and the open are two steps, so another process changing the folder in between can still get past it.
+  its target put in front of the rest of the name (a name that passes through a folder that is not there
+  is `ENOENT`, not `ENOTCAPABLE`: it is walked as it comes). The files are fusedwasi's, and so are the limits of this; what its authors report
+  (2026-11-05, their draft spec S0015; we did not repeat it): on POSIX a folder holds against a change of the tree under the walk, because the kernel is given one name at a time
+  relative to a directory it already holds, with no link followed by the kernel; a stress run (Linux, the Python twin, 8 s: 82,602 opens while the tree was changed 126,670 times) found
+  no escape. That is one run, not a proof, and the C twin was read, not run. **A folder shared with another process:** a guest can plant a link that leads out (WASI 0.2
+  `symlink-at` refuses only an absolute target; WASI 0.1 `path_symlink` refuses a link that leaves), which the walk never follows but another process that reads the same folder will, so treat the links
+  in a shared folder as untrusted. **On Windows a preopen is not a barrier against another process that can change the folder:** there is no `openat`, a name is resolved by hand and
+  checked against the real paths, and the check and the open are two steps (a junction can be made without a privilege); a walk by handle (`NtCreateFile` with a `RootDirectory`) is not built. Nothing here was run on Windows or macOS.
 - **Read-only.** `readonly=True` makes every preopen read-only, `readonly={"data"}` only the ones of those names. The rights that change
   something are taken away from the folder (and so from what is opened in it), so a call that would write, make, remove, rename or
   link answers `ENOTCAPABLE`, and a file opened with every right asked for is opened for reading only.

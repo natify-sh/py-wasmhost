@@ -38,7 +38,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 | **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing now: the application above is done (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
-| **B-303, B-503, B-701x** | batch read and write, an `openat` sandbox, Deno / a pure-Python interpreter / Android | nothing in principle |
+| **B-303, B-701x** | batch read and write, Deno / a pure-Python interpreter / Android | nothing in principle |
 
 ## Waiting for the owner
 
