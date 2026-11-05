@@ -110,7 +110,7 @@ class Loader:
             pass
         m = self.mem
         host = {
-            "ntohs": lambda x: ((x & 0xFF) << 8 | (x >> 8) & 0xFF),
+            "ntohs": lambda x: (x & 0xFF) << 8 | (x >> 8) & 0xFF,
             "ntohl": lambda x: int.from_bytes((x & 0xFFFFFFFF).to_bytes(4, "little"), "big"),
             "memcmp": lambda a, b, k: (lambda x, y: (x > y) - (x < y))(bytes(m.read(a, k)), bytes(m.read(b, k))),
             "strrchr": lambda p, c: (lambda s: p + s.rfind(bytes([c & 255])) if s.rfind(bytes([c & 255])) >= 0 else 0)(
@@ -131,15 +131,18 @@ class Loader:
             out += c
 
     def resolve_func(self, n, own_exports, cell):
-        """main, then the module's own symbol (called through a trampoline: the instance does not exist yet), then a library loaded before."""
+        """main, then the module's own symbol (via a trampoline: no instance yet), then a library loaded before."""
         if n in self.main.exports:
             return self.main_export(n)
         if n in own_exports:
+
             def tramp(*a):
                 try:
                     return cell[0][n](*a)
                 except BaseException as exc:
-                    import sys; print(f"trampoline {n}{a}: {type(exc).__name__} {exc}", file=sys.stderr)
+                    import sys
+
+                    print(f"trampoline {n}{a}: {type(exc).__name__} {exc}", file=sys.stderr)
                     raise
 
             return tramp

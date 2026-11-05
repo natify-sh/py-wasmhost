@@ -92,6 +92,10 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# Guest scripts of the dlopen experiment: they run inside CPython on wasm and patch the import machinery before importing.
+"docs/experiments/dlopen/t_emscripten_*.py" = ["E401", "E402", "E501", "F401", "F403", "F405", "F811", "I001"]
+
 [tool.coverage.run]
 source = ["wasmhost"]
 

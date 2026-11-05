@@ -1,4 +1,4 @@
-"""Runs python3.wasm (CPython with dlopen as an import of the host) through Preview2, with the loader of dl_loader_cpy."""
+"""Runs python3.wasm (CPython, dlopen as a host import) through Preview2, with the loader of dl_loader_cpy."""
 
 import os
 import sys
