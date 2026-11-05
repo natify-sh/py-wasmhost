@@ -630,6 +630,13 @@ shared memory, memory64 (and GC), each with `supports(...)`.
 - [ ] **B-606** (decided 2026-11-04; spec: [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md), draft) WASI 0.2 on the one state (the state is shared by fusedwasi already; two paths, see S0001: one component has one memory and needs no multi-memory; several fused components need multi-memory, which the JavaScriptCore family lacks): a module of 0.2 fused to one core module (its imports are flat `wasi:*` names, which `fusedwasi.p2` knows) runs over the `State` of `Preview1`, so that files,
       arguments, environment and streams are the same for 0.1 and 0.2. Not a Component Model host. Waits for nothing in fusedwasi (its neutral tests bind the flat imports on wasmtime-py and on pywasm3); wasmhost has to offer
       the imports and test them on every backend that takes host functions. Each step has its row in the WASI table of SUPPORTS.md.
+- [ ] **B-608** (the owner, 2026-11-05; **after B-606**, not before) A document "how to run a component-model module with wasmhost", `docs/COMPONENTS.md`, and a section in the README that points to it
+      (the README gets its link only when the document exists). It is written when WASI 0.2 works, from what runs, not from plans. It has to carry, with examples that were run (a command and its output, on which backend):
+      what a component is and why wasmhost runs core modules and not components; how to get a core module (`wasm-tools component unbundle` for one component, with its `--threshold` that leaves small modules inside the
+      component; `meld fuse` for one or several components, and what its default memory strategy does: one memory per component); where the tools come from (PyPI: `wasm-tools-package`, `meld-cli`; the wheels are small but
+      files.pythonhosted.org can be slow in a sandbox); how to run the result (the call, the options, the names of the memory and of `cabi_realloc`, which differ between `meld` versions); what works on which backend
+      (a link to SUPPORTS.md, not a copy: one component also on the JavaScriptCore family, several components not); what does not work (`gi-jsc`, WASI 0.3, sockets); the usual errors and what they mean. The examples
+      are a small component built from WAT (as in the experiments of S0001/S0003) and a real command (wasmext has `examples/wasi2_unbundled`). Docs only; a spec is not needed.
 - [ ] **B-607** (decided 2026-11-04) Keep SUPPORTS.md true: a new feature or a new backend gets a probe in `tests/feature_probes.py` (`tools/probe_features.py --regenerate` makes its bytes), and the tables are written again from the logs of a CI run.
 
 ## Ideas, not planned
