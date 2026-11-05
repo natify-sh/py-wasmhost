@@ -33,6 +33,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 | **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing: unblocked (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
+| **B-611** | native extensions of CPython on WASI: wasmhost as the dynamic loader (an experiment shows the wasm level works on wasmtime, node, bun; not wasm3) | the owner's decision and a spec; CPython was not relinked |
 | **B-303, B-701x** | batch read and write, Deno / a pure-Python interpreter / Android | nothing in principle |
 
 ## Waiting for the owner
