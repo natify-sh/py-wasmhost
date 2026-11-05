@@ -26,7 +26,7 @@ no JIT for wasm); the same code must work on CPython, PyPy, free-threaded CPytho
 Module(bytes)  -> _binary.py reads imports / exports / types  -> backend.compile
 Instance(module, imports) -> backend.instantiate (host functions, Memory/Table/Global objects, limits)
 backend (one per engine, one lock per backend): _native.py (wasmtime, wasm3); the JavaScript engines: _js.py (node, bun), _jsc.py, _capi.py, _pyodide.py (jsc, gi-jsc, jscontext, pyodide)
-wasmhost.wasi.preview1.Preview1 -> one fusedwasi.p2.State for the world, a Guest for each imports()
+wasmhost.wasi.preview1.Preview1 -> one fusedwasi.State for the world, a Guest for each imports()
 CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a device, where CI does not exist)
 ```
 

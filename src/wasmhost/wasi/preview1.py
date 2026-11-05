@@ -3,7 +3,7 @@
 The 46 functions of the specification (the `legacy/preview1` witx files of the WebAssembly/WASI repository, branch
 `wasi-0.1`), over directories of the real file system, with standard streams, arguments, an environment, clocks and
 random bytes. The calls themselves are those of the package `fusedwasi` (the Python twin of the C core that `wasmext`
-builds into its modules): one `fusedwasi.p2.State` for the world of the program (arguments, environment, files,
+builds into its modules): one `fusedwasi.State` (one class for WASI 0.1 and 0.2) for the world of the program (arguments, environment, files,
 streams) and one `Guest` for each instance that uses it; this module is the shape `wasmhost` gives them: the options
 of the host (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), the import objects of the engines,
 and the tables of the specification. Sockets are not supported (`ENOTSOCK`). The first snapshot, `wasi_unstable` (what
@@ -36,8 +36,8 @@ import weakref
 from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, Protocol
 
-from fusedwasi import signatures
-from fusedwasi.p2 import Exit, Guest, InputStream, OutputStream, State, StreamClosed, StreamFailed
+from fusedwasi import Exit, Guest, State, signatures
+from fusedwasi.p2 import InputStream, OutputStream, StreamClosed, StreamFailed
 
 from .._api import Instance, Module
 from .._binary import i32, i64

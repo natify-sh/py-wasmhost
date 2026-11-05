@@ -13,7 +13,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 1. **wasmhost goes its own way.** It is not unified with `py-wasmext` under one `Store`, one backend protocol or one model of instances. The API stays `Instance(module, imports)` over an engine that has its own
    state (wasmtime has a `Store`, wasm3 and the JavaScript engines do not), and `isolated=True` stays the way to ask for a store of its own where the engine has one. wasmext settles its own store (its D46); wasmhost does not take
    its shape and is not a front end of it. The 182 calls of `Instance(` in the tests, examples and README are not touched by any plan.
-2. **WASI is `fusedwasi`, 0.1 and 0.2.** `wasmhost.wasi.preview1` already makes one `fusedwasi.p2.State` for the world and a `Guest` for each `imports()`; fusedwasi itself has one `State` and one `Guest` for both
+2. **WASI is `fusedwasi`, 0.1 and 0.2.** `wasmhost.wasi.preview1` already makes one `fusedwasi.State` for the world and a `Guest` for each `imports()`; fusedwasi itself has one `State` and one `Guest` for both
    families (checked 2026-11-05: `fusedwasi.p1.State is fusedwasi.p2.State`), so the sharing of the state between 0.1 and 0.2 is fusedwasi's and not a goal here. The step is to answer the imports of a WASI 0.2 module that is fused to
    one core module (`meld fuse`, or `wasm-tools component unbundle`; its imports are flat `wasi:*` names, which `fusedwasi.signatures.find_import` resolves) from that same `State` ([S0001](docs/specs/S0001-wasi-0.2-on-one-state.md)).
 3. **The work is the widening of the support of features**, backend by backend, as [SUPPORTS.md](SUPPORTS.md) shows it. A feature is taken when a real module needs it; each item goes through `supports(...)`, and a

@@ -510,7 +510,7 @@ engines, about 5 times slower on a tight loop).
 
 `wasmhost.wasi.preview1` is a host for `wasi_snapshot_preview1` (WASI 0.1), the interface that Rust (`wasm32-wasip1`), wasi-sdk, Zig and
 most "command line" modules are built against: all 46 functions of the specification, in plain Python. The calls themselves are those of the package
-`fusedwasi` (a dependency of wasmhost: pure Python, `py3-none-any`, nothing else to install; one `fusedwasi.p2.State` is the world of a `Preview1` and one `Guest` is each instance), the Python twin of the C core that `wasmext` builds into
+`fusedwasi` (a dependency of wasmhost: pure Python, `py3-none-any`, nothing else to install; one `fusedwasi.State` (one class for WASI 0.1 and 0.2) is the world of a `Preview1` and one `Guest` is each instance), the Python twin of the C core that `wasmext` builds into
 its modules; the two are tested against each other with the same scripts of calls. `wasmhost.wasi.preview1` gives them the shape wasmhost has: the options below,
 the import objects of the engines, and the tables of the specification. It also
 offers `wasi_unstable`, the first snapshot, which older toolchains (wasienv, wasm-clang) still produce and which the Lua build of
