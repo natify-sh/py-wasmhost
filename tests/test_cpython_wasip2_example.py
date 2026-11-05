@@ -60,3 +60,8 @@ def test_a_flag_closes_the_network(example: ModuleType, capfd: pytest.CaptureFix
 def test_env_reaches_the_program(example: ModuleType, capfd: pytest.CaptureFixture[str]) -> None:
     assert example.main(["--env", "WASMHOST_X=a=b", "-c", "import os; print(os.environ['WASMHOST_X'])"]) == 0
     assert capfd.readouterr().out.splitlines()[-1] == "a=b"
+
+
+def test_module_option_runs_another_build(example: ModuleType, capfd: pytest.CaptureFixture[str]) -> None:
+    assert example.main(["--module", str(EXAMPLE / "python2.wasm"), "-c", "print(40 + 2)"]) == 0
+    assert capfd.readouterr().out.splitlines()[-1] == "42"
