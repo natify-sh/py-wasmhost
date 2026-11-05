@@ -22,6 +22,7 @@ Measured on 2026-11-05 on this machine (Linux, wasmtime-py 49.0.0, Node 22.22.0,
   with two memories, exported as `memory` and `memory$1`, and the functions of the components. wasmhost ran it on wasmtime, Node, Bun and wasm3: `exports["memory$1"]` is a `Memory`; `read`, `write` and the length act on it alone.
   (The attribute form `exports.memory$1` is not valid Python: the dictionary form is the way.) Two things limit the toy: its import `a:pkg/iface.get` was left unresolved by `meld` (it came out as an import of the fused
   module, answered here by a host function), and it is two components with no WASI import.
+* **The names are in `meld`'s import map.** `meld fuse --emit-import-map` writes, for each import, the `memory` and the `realloc` it uses as `{index, export}` (see S0001, "Context"), so the host does not have to guess the names that vary below.
 * **The names are not stable.** wasmext's own runs (`py-wasmext/docs/WASI_COMPONENTS.md`, `docs/experiments/wasi_checks/`) with `meld` 0.64 to 0.65 and `--exports world` show `memory$0` and `cabi_realloc$1`, and the table there says
   the exports are `greet`, `cabi_post`, `memory$0`, `cabi_realloc$1` for the simple component but "both memories and both `cabi_realloc`" for the complex one (500 KB, two memories). So the name of the memory of component N, and
   which memories are exported at all, depend on the version of `meld` and on its export mode. `meld fuse --memory shared --address-rebase` gives one memory but "is unsound if any input grows memory" (`meld docs memory-strategies`).
