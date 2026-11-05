@@ -233,7 +233,10 @@ def test_several_components_without_an_import_map_are_refused(
     capsys: pytest.CaptureFixture[str], session: str, need_imports: None
 ) -> None:
     assert run(session, "--invoke", "demo:m/app@0.1.0#run", str(DATA / "two_multi.wasm")) == 1
-    assert "give import_map=" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    if "give import_map=" not in err and "memor" in err:  # S0003: the JavaScriptCore engines refuse several memories
+        pytest.skip(err)
+    assert "give import_map=" in err
 
 
 def test_import_map_on_a_wasi_01_module_is_an_error(
