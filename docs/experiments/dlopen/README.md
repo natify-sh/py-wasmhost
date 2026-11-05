@@ -81,3 +81,11 @@ What the main module and the loader had to supply (found by listing the imports 
   exist yet), and symbols of libraries loaded earlier (`bind`, `base_engine`, ... share C++ classes) are looked up in them (`dl_loader_cpy.py`:
   `resolve_func`, `sibling_sym`).
 Not needed: libc++ itself. It would be for C++ code that throws (`contourpy` does, via pybind11).
+
+## The same on wasmtime-py alone (`wasmtime_only.py`)
+
+No wasmhost, no fusedwasi, no JavaScript: `pip install wasmtime`, `WASI_SDK_PATH=... ./build.sh`, `python wasmtime_only.py`. WASI is wasmtime's own (`Linker.define_wasi`,
+preview1); the loader (about 100 lines) is the same one as in `dl_loader.py`, written on the wasmtime-py API (a `Linker` per side module, the memory, table and stack
+pointer of the program defined into it). Result (wasmtime-py 49.0.0, Linux): `dlopen("side_libc.so")` gives memory base 275008 and `side_libc` calls the program's `printf`: `side printf: hello via real dlopen (21)`, exit code 0.
+What it can **not** do: the CPython of `python3.wasm` is a WASI 0.2 module (`wasi:*@0.2` imports), and wasmtime-py has no host for those on a core module: that part is what wasmhost's `Preview2` over fusedwasi gives.
+And `pyodide.asm.wasm` does not load on wasmtime (legacy exceptions).

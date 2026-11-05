@@ -19,3 +19,7 @@ htmlcov/
 # built by examples/cpython/build_wasip2_ssl.sh and build.sh (not committed)
 examples/cpython/python2_ssl.wasm
 examples/cpython/.build/
+
+# built by docs/experiments/dlopen/build.sh
+docs/experiments/dlopen/*.wasm
+docs/experiments/dlopen/*.so
