@@ -7,8 +7,8 @@ builds into its modules): one `fusedwasi.State` (one class for WASI 0.1 and 0.2)
 (arguments, environment, files, streams) and one `Guest` for each instance that uses it; this module is the shape
 `wasmhost` gives them: the options of the host (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`),
 the import objects of the engines, and the tables of the specification. Sockets are not supported (`ENOTSOCK`).
-The first snapshot, `wasi_unstable` (what older toolchains still produce), is offered too, from the same object: see UNSTABLE below for the four things in which
-it differs.
+The first snapshot, `wasi_unstable` (what older toolchains still produce), is offered too, from the same object:
+see UNSTABLE below for the four things in which it differs.
 
     wasi = Preview1(args=["prog", "-v"], preopens={"/": "some/dir"}, stdout=sys.stdout.buffer.write)
     code = wasi.run(module)           # the exit code of `_start`
