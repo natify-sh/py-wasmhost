@@ -100,6 +100,13 @@ jobs:
           CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
           CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
 
+      - name: "Example: CPython for WASI 0.2 (wasmtime, Linux x64)"
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        run: WASMHOST_BACKEND=wasmtime uv run --locked python examples/cpython/run2.py -c "$CPYTHON_PROGRAM" 2>/dev/null | grep -Fqx "$CPYTHON_EXPECT"
+        env:
+          CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
+          CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
+
       - name: "Example: CPython for WASI (jscontext, macOS, a real JSContext through rubicon-objc)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' && !startsWith(matrix.python-version, 'pypy') }}
         run: WASMHOST_BACKEND=jscontext uv run --locked python examples/cpython/run.py -c "$CPYTHON_PROGRAM" 2>/dev/null | grep -Fqx "$CPYTHON_EXPECT"

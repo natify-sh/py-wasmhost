@@ -50,6 +50,9 @@ both in a bare JavaScript engine:
 `examples/cpython/` runs the official CPython (3.15, built to `wasm32-wasip1` with wasi-sdk, not Pyodide) on `wasmhost.wasi.preview1`:
 `python.wasm` and its standard library are committed, `build.sh` makes them from python/cpython, and `run.py` runs them
 (`python examples/cpython/run.py -c "print(1)"`). No processes, sockets or `dlopen` there, as WASI preview1 has none.
+`python examples/cpython/run2.py -c "print(1)"` runs the same CPython built for `wasm32-wasip2` (`python2.wasm`, 8 MB, committed; `build_wasip2.sh` is meant to rebuild it, written from the recipe that made it but not yet re-run) on
+`Preview2`, the one core module of the component that CPython's own build makes. Its exit code is only 0 or 1 (`sys.exit(3)` gives 1: the export `wasi:cli/run#run` returns ok or err). Not Pyodide.
+Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 
 Both keep their downloads in `$WASMHOST_CACHE`, else `~/.cache/wasmhost`, else `./.cache` where there is no usable
 home directory (PythonIDE).

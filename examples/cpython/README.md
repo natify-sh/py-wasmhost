@@ -28,11 +28,22 @@ python -m wasmhost run --dir examples/cpython::/py --env PYTHONHOME=/py --argv0 
 | `lib/python315.zip` | the standard library as byte code, 5 MB, found by CPython on its own                               |
 | `sitecustomize.py`  | what WASI lacks (see below); `mkstdlib.py` puts it into the zip                                    |
 | `run.py`            | the runner: `Preview1` with the current folder as `/` and this folder as `/py`                     |
+| `python2.wasm`      | the same CPython for `wasm32-wasip2`: the core module of the component, 8 MB, run by `run2.py` (`Preview2`)                         |
+| `run2.py`           | as `run.py` on `Preview2` (`--dir`, `-S` as `wasmhost run`); the exit code is 0 or 1 only                                           |
+| `build_wasip2.sh`   | makes `python2.wasm` (wasi-sdk 34, no patch, `wasm-tools component unbundle`); not run in this change                              |
 | `build.sh`          | makes `python.wasm` and `lib/python315.zip` from python/cpython, wasi-sdk and zlib                  |
 | `mkstdlib.py`       | packs the standard library of a checkout into the zip                                              |
 
 `run.py` options: `--dir HOST[:GUEST]` gives the program one more folder; `--site HOST` is a folder of packages, which becomes
 `/site` (then `/site1`...) on `sys.path`. Everything else is passed to `python.wasm` (`-c`, `-m`, a script).
+
+## WASI 0.2 (`run2.py`, `python2.wasm`)
+
+The same commit built for `wasm32-wasip2` with no patch to CPython, unbundled to one core module (115 imports, all `wasi:*@0.2.12`) and run by `Preview2` with
+the standard library of `lib/python315.zip`: `python examples/cpython/run2.py -c "print(1 + 1)"`. Run by hand on wasmtime, wasm3 and Node, and by
+`tests/test_cpython_wasip2_example.py` on wasmtime, wasm3, Node and Bun; CI runs the small program on wasmtime (Linux x64, pending). The exit code is only 0 or 1:
+CPython's `main` returns 3 for `sys.exit(3)` and the export `wasi:cli/run#run` turns any non-zero into err (the interface, not a defect). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+`build_wasip2.sh` was written from the recipe that made the committed module and **has not been run in this change**; its wasi-sdk checksum is known for Linux x86_64 only.
 
 ## Building
 
