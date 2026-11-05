@@ -18,7 +18,7 @@ engine (Node) only runs the WebAssembly: `Py_Initialize`, then `PyRun_SimpleStri
 | `import json, collections, platform, hashlib, zlib` (from `python_stdlib.zip` through the file calls of the host) | right answers, `sys.platform` is `emscripten` |
 | a list of 2 000 000 squares | works (the host grows the memory: `emscripten_resize_heap`) |
 | Bun | `BrokenPipeError` (the process died; not investigated) |
-| wasmtime, wasm3 | can not: the module uses legacy exceptions (`try`), which they do not take (SUPPORTS.md) |
+| wasmtime, wasm3 (the file as shipped) | can not: the module uses legacy exceptions (`try`), which they do not take (SUPPORTS.md); see below for wasmtime |
 
 ## What the host had to do
 * The 280 `GOT.func` globals are filled by hand with table slots of the module's own functions (what the Emscripten loader does).
@@ -31,3 +31,17 @@ engine (Node) only runs the WebAssembly: `Py_Initialize`, then `PyRun_SimpleStri
 ## Not done
 * No JavaScript objects: `pyodide.ffi`, `js`, promises and `micropip` need the bridge. Loading a package (`dlopen`) is not done either.
 * The 14 WASI calls are written by hand here; `Preview1` over fusedwasi provides all 14 (names checked, not run), but the `__syscall_*` would have to go through its file state too.
+
+## Pyodide on wasmtime-py alone (`run_pyodide_wasmtime.py`, 2026-11-05)
+
+The owner's question: can it run on wasmtime, with no JavaScript and none of our libraries? **Yes, after one offline conversion.** wasmtime refuses the module as shipped
+(`legacy_exceptions feature required for try instruction`). Binaryen 132 (the npm package `binaryen`, used only as a tool, not at run time) rewrites the legacy
+exceptions to the new `exnref` ones: `wasm-opt pyodide.asm.wasm --all-features --disable-compact-imports --translate-to-exnref` (8 s; without `--disable-compact-imports` wasmtime 49
+can not read the output: `invalid leading byte 0x7E with compact imports proposal disabled`). The converted file compiles on wasmtime-py 49.0.0 with `Config.wasm_exceptions = True`.
+
+`python run_pyodide_wasmtime.py PYODIDE_DIR "code"` needs only `pip install wasmtime`. Result (Linux): `sys.version` is 3.14.2, `json`, `hashlib`, `zlib`, `decimal`, `fractions` from the stdlib zip,
+2 000 000 squares in a list, a caught `ZeroDivisionError`; a run takes about 8 s with the start. Differences from the Node script: no wasmhost (its wasmtime backend can not make a host function
+with an `externref` parameter, which the stubs of the JavaScript bridge need), the type of a table entry for the trampoline comes from `Func.type()`, not from `wasm-tools`.
+
+Not verified: that the conversion keeps the semantics of every exception path (only the paths that these programs use ran; C++ exceptions that the bridge would throw were not exercised, because the bridge is stubbed); the conversion is
+Binaryen's, not ours. Not done: the bridge to JavaScript, `dlopen` and packages, sockets, any CI.
