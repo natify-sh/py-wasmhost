@@ -130,6 +130,32 @@ class Loader:
                 return out + c.split(b"\0")[0]
             out += c
 
+    def resolve_func(self, n, own_exports, cell):
+        """main, then the module's own symbol (called through a trampoline: the instance does not exist yet), then a library loaded before."""
+        if n in self.main.exports:
+            return self.main_export(n)
+        if n in own_exports:
+            def tramp(*a):
+                try:
+                    return cell[0][n](*a)
+                except BaseException as exc:
+                    import sys; print(f"trampoline {n}{a}: {type(exc).__name__} {exc}", file=sys.stderr)
+                    raise
+
+            return tramp
+        for lib in self.libs.values():
+            e = lib["instance"].exports.get(n)
+            if e is not None and not isinstance(e, Global):
+                return e
+        return self.libc_fallback(n)
+
+    def sibling_sym(self, kind, n):
+        for lib in self.libs.values():
+            e = lib["instance"].exports.get(n)
+            if e is not None:
+                return lib["base"] + e.value if kind == "GOT.mem" else self.slot(e)
+        raise KeyError(f"unresolved {kind}.{n}")
+
     def main_export(self, name):
         return self.main.exports[name]
 
@@ -149,6 +175,7 @@ class Loader:
         tbase = self.table.grow(tsize) if tsize else len(self.table)
         own_exports = {e.name: e for e in Module.exports(module)}
         got_patch = []  # (global, kind, name)
+        cell = []  # filled with the instance exports once it exists (for calls into the module's own symbols)
         env = {}
         for imp in Module.imports(module):
             m, n = imp.module, imp.name
@@ -163,20 +190,24 @@ class Loader:
             elif m == "env" and n == "__stack_pointer":
                 env.setdefault("env", {})[n] = self.main_export("__stack_pointer")
             elif m == "env" and imp.kind == "function":
-                env.setdefault("env", {})[n] = self.libc_fallback(n)
+                env.setdefault("env", {})[n] = self.resolve_func(n, own_exports, cell)
             elif m in ("GOT.mem", "GOT.func"):
                 g = Global("i32", 0, mutable=True)
                 if n in own_exports:
                     got_patch.append((g, m, n))  # own symbol: patched after instantiation
-                elif m == "GOT.mem":
-                    g.value = self.main_export(n).value  # address of a data symbol of the main
+                elif n in self.main.exports:
+                    if m == "GOT.mem":
+                        g.value = self.main_export(n).value  # address of a data symbol of the main
+                    else:
+                        g.value = self.slot(self.main_export(n))  # a function of the main -> table slot
                 else:
-                    g.value = self.slot(self.main_export(n))  # a function of the main -> table slot
+                    g.value = self.sibling_sym(m, n)  # a symbol of a library loaded before
                 env.setdefault(m, {})[n] = g
             else:
                 raise RuntimeError(f"unresolved import {m}.{n}")
         inst = Instance(module, env)
         ex = inst.exports
+        cell.append(ex)
         for g, m, n in got_patch:
             if m == "GOT.mem":
                 g.value = base + ex[n].value

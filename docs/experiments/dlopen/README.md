@@ -61,3 +61,20 @@ Results:
   C functions called through a pointer of another signature; WASI has no such thing.
 * `contourpy` (C++, pybind11) imports about 300 C++ runtime symbols (libc++, libc++abi, `_Unwind_CallPersonality`, `__wasm_lpad_context`): the main would need libc++ and wasm exception handling. Not tried.
 * numpy/scipy/pillow have no Emscripten wheel on PyPI (pandas cp312, pydantic-core cp314 only); the Pyodide CDN is not reachable from the sandbox, so numpy was not tried.
+
+### py-ballisticcalc-exts (C++ + Cython, Emscripten wheel from PyPI) - works
+
+`py_ballisticcalc_exts-3.1.1-cp315-cp315-pyemscripten_2026_5_wasm32.whl` (six C++/Cython `.so`) plus the pure-Python
+`py_ballisticcalc` run on `python3.wasm` (wasmtime and node): the Cython RK4 engine and the pure-Python RK4 engine
+give the same trajectory (1000 yd: height -401.634 in, velocity 1079.64 fps). Script: `t_emscripten_ballisticcalc.py`.
+
+What the main module and the loader had to supply (found by listing the imports of the six `.so` with `wasm-tools print`):
+* `cxx_shim.c`: the ten libc++ symbols the wheel imports (`operator new/delete`, `std::recursive_mutex`, `std::sort` of doubles, `nothrow`,
+  `__cxa_pure_virtual`), written in C and linked into the main. No libc++ and no exception support needed: the wheel throws nothing.
+  Trap met on the way: on wasm the C++ ABI makes constructors and destructors **return `this`**; a shim that returned nothing gave
+  "host function should return 1 value" inside the module.
+* libm (`sin cos tan atan2 exp pow fmin fmax`), `strlen`, `abort`: exported from the main with `-Wl,--export=`.
+* Loader: a module's own default-visibility functions are imports too (`env.<own symbol>`; called through a trampoline because the instance does not
+  exist yet), and symbols of libraries loaded earlier (`bind`, `base_engine`, ... share C++ classes) are looked up in them (`dl_loader_cpy.py`:
+  `resolve_func`, `sibling_sym`).
+Not needed: libc++ itself. It would be for C++ code that throws (`contourpy` does, via pybind11).
