@@ -44,8 +44,9 @@ def test_exit_code_is_ok_or_err(example: ModuleType) -> None:
     assert example.main(["-c", "import sys; sys.exit(3)"]) == 1
 
 
-# Only "the lookup is allowed" is checked: on the CI runners the first address of `localhost` comes back as `b''`
-# in place of a (host, port) tuple (not investigated), so the port is not read from it.
+# Only "the lookup is allowed" is checked, not the port. CPython's configure.ac forces `ipv6=no` for WASI (`ENABLE_IPV6` is
+# undefined in our pyconfig.h), so an IPv6 result of `getaddrinfo` comes back as `(2, b'')` instead of `(host, port, ...)`.
+# Where `localhost` also resolves to `::1` (the CI runners; reproduced here by adding it to /etc/hosts) such an entry can be first.
 LOOKUP = "import socket; print(len(socket.getaddrinfo('localhost', 80)) > 0)"
 
 
