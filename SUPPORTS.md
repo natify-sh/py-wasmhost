@@ -3,7 +3,7 @@
 This is the support of **wasmhost's features on each runtime**, as CI measured it: not a list of what an engine could do in general, but what runs through wasmhost on that backend, on that operating system.
 
 Every job of [tests.yml](.github/workflows/tests.yml) runs the suite once per backend, and the suite has one test, `tests/test_feature_probes.py`, that prints one line to the log of the job:
-`WASMHOST-SUPPORTS {...}` with the engine and its version, the OS and the Python, the strings of `backend.supports(...)`, whether a WASI program ran, and the answer of every probe
+`WASMHOST-SUPPORTS {...}` with the engine and its version, the OS and the Python, the strings of `backend.supports(...)`, whether a WASI 0.1 and a WASI 0.2 program ran, and the answer of every probe
 (`tests/feature_probes.py`). The tables below are made from those lines by `tools/probe_features.py`:
 
 ```
@@ -63,9 +63,10 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 | `threads` | yes | yes | yes | no | no | no | no | no |
 | `timeout` | yes | yes | no | yes | no | no | no | no |
 
-| WASI program (`Preview1` runs `wasi_hello`) | `wasmtime` | `node` | `bun` | `wasm3` | `jsc` | `gi-jsc` | `jscontext` | `pyodide` |
+| WASI program, run by a host of wasmhost | `wasmtime` | `node` | `bun` | `wasm3` | `jsc` | `gi-jsc` | `jscontext` | `pyodide` |
 |---|---|---|---|---|---|---|---|---|
-| `wasi_snapshot_preview1`: arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
+| `wasi_snapshot_preview1` (`Preview1`): arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
+| `wasi:*@0.2` of one component (`Preview2`): hello, environment, random, exit | yes | yes | yes | yes | yes | no | yes | yes |
 
 Measured by CI: 43 different lines of the log, from these combinations:
 - `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
@@ -82,7 +83,7 @@ Measured by CI: 43 different lines of the log, from these combinations:
 
 The notes below are written by hand from the tables and are checked again whenever the tables are written.
 
-From the CI run of `fde7d0d` (all jobs of Tests green). What the tables say:
+From the CI run of `0cc1a79` (all jobs of Tests green; the tables of WebAssembly features did not change from the run of `fde7d0d`). What the tables say:
 
 * **WebAssembly 1.0 and 2.0 run on every backend**, with one exception: `simd`. `wasm3` has no SIMD, and the JavaScriptCore of WebKitGTK **without its JIT** (the CI job that stands in for an iPhone, where wasm gets no JIT) refuses
   it too; with the JIT it runs (`jsc` on macOS and Linux, `jscontext` on macOS).
@@ -95,11 +96,12 @@ From the CI run of `fde7d0d` (all jobs of Tests green). What the tables say:
   on a Mac is a real JSContext with the JIT on.
 * **Windows, PyPy and the Python versions** (3.10, 3.15, 3.15t, PyPy 3.11) gave the same answers as Linux for `wasmtime`, `node` and `wasm3`; the list under the tables names every combination that was run.
 
-**`supports(...)`** (run of `ba0d070`, which reads the live backend; the same on every OS): host functions (`imports`, and so WASI) are there on every backend but `gi-jsc`, which is why the WASI program ran on seven of the eight; `jscontext` has `imports` once its engine has started. `wasm3` has none of `import.global`, `import.memory`, `import.table`, `table.funcs`, `table.length` and `memory.grow` from Python (the objects made on their own and the tables are not in pywasm3). `table.signatures` is `wasmtime` alone; `timeout` is `wasmtime`, `node` and `wasm3`; `fuel` and `isolated` are `wasmtime` and `wasm3`; `memory.view` is `wasmtime` and `wasm3`; and `threads` (calls from several Python threads) is `wasmtime`, `node` and `bun`.
+**`supports(...)`** (run of `0cc1a79`; the same on every OS): host functions (`imports`, and so WASI) are there on every backend but `gi-jsc`, which is why the WASI program ran on seven of the eight; `jscontext` has `imports` once its engine has started. `wasm3` has none of `import.global`, `import.memory`, `import.table`, `table.funcs`, `table.length` and `memory.grow` from Python (the objects made on their own and the tables are not in pywasm3). `table.signatures` is `wasmtime` alone; `timeout` is `wasmtime`, `node` and `wasm3`; `fuel` and `isolated` are `wasmtime` and `wasm3`; `memory.view` is `wasmtime` and `wasm3`; and `threads` (calls from several Python threads) is `wasmtime`, `node` and `bun`.
 
 ## WASI
 
-The last row of the tables above is measured: one small WASI program (`tests/wasm_builder.wasi_hello`: arguments, a file made in a preopen, `fd_write`, `proc_exit`) run by `Preview1` on each backend. A
+The last two rows of the tables above are measured: one small WASI 0.1 program (`tests/wasm_builder.wasi_hello`: arguments, a file made in a preopen, `fd_write`, `proc_exit`) run by `Preview1`, and one WASI 0.2 program
+(`tests/data/wasi2/one.wasm`: hello, environment, random bytes, exit) run by `Preview2`, on each backend. A
 backend that can not take host functions (`imports` is "no" in the `supports(...)` table) can not run a WASI program, since a program imports its functions. The rest is what the code and the specification
 files in `tests/data/wasi` say:
 
@@ -109,9 +111,12 @@ files in `tests/data/wasi` say:
 | `wasi_unstable` (the first snapshot) | yes: 45 functions (no `sock_accept`) | the same `Preview1` offers both; older toolchains (wasienv, wasm-clang) produce it |
 | files | yes: preopens of real folders; `..` and links that leave a folder are `ENOTCAPABLE`; `readonly=` | on POSIX walked with `openat`; on Windows the check and the open are two steps |
 | standard streams, arguments, environment, clocks, random | yes | `thread_cputime_id` reads the process clock on Pyodide |
-| sockets | no: `ENOTSOCK` | |
+| sockets in WASI 0.1 | no: `ENOTSOCK` | WASI 0.1 has none to give; use `Preview2` |
 | signals | no: `ENOSYS` | `proc_raise` does not end the program here (it does in `wasmext`) |
 | `poll_oneoff` that sleeps | yes, but outside what `timeout` and `fuel` can stop | |
-| WASI 0.2 (`wasi:*` interfaces, Component Model) | **not yet.** A module of 0.2 fused to one core module has flat `wasi:*` imports, which `fusedwasi` knows (`fusedwasi.p2`); wasmhost does not offer them | the plan: `fusedwasi` 0.1 and 0.2 over one state, see [ROADMAP.md](ROADMAP.md) |
+| WASI 0.2 of **one component** (`wasi:*@0.2.N`, the core module that `wasm-tools component unbundle` leaves) | yes: `wasmhost.wasi.Preview2`, over `fusedwasi`; the program of the probe runs on every backend that takes host functions (the second row of the table above) | S0001 step A; `Preview1` and `Preview2` share a `State` (`state=`); the command line (`wasmhost run`, `-S` flags) is not built yet |
+| sockets of WASI 0.2 (`wasi:sockets`) | yes, **denied by default**: `network=True` or a `socket_addr_check` opens them | TCP connect shown by the tests on wasmtime, Node, Bun, wasm3 and (macOS) JavaScriptCore; skipped on Pyodide, which has no sockets; UDP, listen and name lookup are not tested |
+| WASI 0.2 of **several components** fused by `meld` | **not yet:** the draft [S0004](docs/specs/S0004-wasi-0.2-several-components.md) (`meld`'s import map); a module of several memories runs on no JavaScriptCore engine | |
+| a real component (`.wasm` with the version field `0d 00 01 00`) | no: `Module` refuses it; unbundle or fuse it first | |
 | WASI 0.3 (async) | no | out of scope |
-| wasi-threads | no | needs a shared memory first |
+| wasi-threads (threads inside the module) | no | not in WASI 0.2 and not in fusedwasi; a shared `Memory` is a `NotImplementedError` |
