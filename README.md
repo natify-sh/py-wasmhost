@@ -583,7 +583,7 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 - **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=` and `http_check=` pass through to fusedwasi's `State`, but `wasi:http` is still in progress there and has not been run through wasmhost: do not rely on it yet. A blocking socket call holds the backend (one call at a time).
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
 - **Try it:** `python examples/wasi2.py hello` (a WASI 0.2 program says hello), `python examples/wasi2.py sock` (a TCP client: the network is denied) and `python examples/wasi2.py sock --network` (it connects to a local server); see `examples/wasi2/README.md`.
-- Not built yet: `-S http` and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
+- Not built yet: `-S http` (S0001 step C; fusedwasi 0.1.0b2 has `wasi:http` but calls it unstable) and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
 
 ## Try it on a device
 

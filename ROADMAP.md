@@ -36,7 +36,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 | **A real application on `Preview2`** | CPython built for `wasm32-wasip2` (wasi-sdk 34), unbundled, run through `Preview2`: the proof that it is more than small examples | the owner's go; the build of CPython may need patches |
 | **S0001 path 2** | several components: `Preview2` reads `meld`'s import map (`comp` is the `memory.index` of an import; the `$N` of a name is stripped); not for JavaScriptCore | S0003 (done); a run with real WASI calls through the map (the one made so far called none) |
 | **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | the application above; written from what runs |
-| **`wasi:http`, `-S http`** | `Preview2` serving `wasi:http`, and the flag | fusedwasi: its `wasi:http` is in progress, not ready |
+| **`wasi:http`, `-S http`** (S0001 step C) | `Preview2` takes `http_send` as well as `http`/`http_check`; `wasmhost run -S http`; a test through the `http_send` hook | fusedwasi 0.1.0b2 has `wasi:http` (63 imports) but calls it unstable; the spec step C is being built |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
 | **B-303, B-503, B-701x** | batch read and write, an `openat` sandbox, Deno / a pure-Python interpreter / Android | nothing in principle |
