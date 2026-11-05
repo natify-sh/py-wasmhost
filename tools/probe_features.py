@@ -24,6 +24,11 @@ ROOT = Path(__file__).resolve().parent.parent
 LINE = re.compile(r"WASMHOST-SUPPORTS (\{.*\})")
 ORDER = ["wasmtime", "node", "bun", "wasm3", "jsc", "gi-jsc", "jscontext", "pyodide"]
 CELL = {"yes": "yes", "no": "no", "parser": "not added to wasmhost"}
+# `supports(...)` cells where the engine's Python binding can do something that wasmhost does not use: a "no" there is a
+# "not added to wasmhost", not an engine limit. Measured by hand (2026-11-05, pywasm3 0.9.1.dev75), not by CI.
+NOT_ADDED = {
+    ("wasm3", "import.global"): "not added to wasmhost (pywasm3 links a value; the global is not shared)",
+}
 
 
 def regenerate() -> None:
@@ -112,7 +117,12 @@ def markdown(records: list[dict]) -> str:
     for a in api:
         out.append(
             f"| `{a}` | "
-            + " | ".join(cell(_by_platform(runs[b], lambda r, a=a: "yes" if a in r["api"] else "no")) for b in backends)
+            + " | ".join(
+                NOT_ADDED.get((b, a), "no")
+                if (c := cell(_by_platform(runs[b], lambda r, a=a: "yes" if a in r["api"] else "no"))) == "no"
+                else c
+                for b in backends
+            )
             + " |"
         )
 
