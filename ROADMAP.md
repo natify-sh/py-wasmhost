@@ -13,9 +13,9 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 1. **wasmhost goes its own way.** It is not unified with `py-wasmext` under one `Store`, one backend protocol or one model of instances. The API stays `Instance(module, imports)` over an engine that has its own
    state (wasmtime has a `Store`, wasm3 and the JavaScript engines do not), and `isolated=True` stays the way to ask for a store of its own where the engine has one. wasmext settles its own store (its D46); wasmhost does not take
    its shape and is not a front end of it. The 182 calls of `Instance(` in the tests, examples and README are not touched by any plan.
-2. **WASI is `fusedwasi` 0.1 and 0.2 over one state.** `wasmhost.wasi.preview1` already makes one `fusedwasi.p2.State` for the world and a `Guest` for each `imports()`. The next step is to let a module of
-   WASI 0.2 that is fused to one core module (`meld fuse`, or `wasm-tools component unbundle`; its imports are flat `wasi:*` names that fusedwasi knows) run over the same state, so that the files, the arguments, the
-   environment and the streams of a program are the same whichever version it asks for.
+2. **WASI is `fusedwasi`, 0.1 and 0.2.** `wasmhost.wasi.preview1` already makes one `fusedwasi.p2.State` for the world and a `Guest` for each `imports()`; fusedwasi itself has one `State` and one `Guest` for both
+   families (checked 2026-11-05: `fusedwasi.p1.State is fusedwasi.p2.State`), so the sharing of the state between 0.1 and 0.2 is fusedwasi's and not a goal here. The step is to answer the imports of a WASI 0.2 module that is fused to
+   one core module (`meld fuse`, or `wasm-tools component unbundle`; its imports are flat `wasi:*` names, which `fusedwasi.signatures.find_import` resolves) from that same `State` ([S0001](docs/specs/S0001-wasi-0.2-on-one-state.md)).
 3. **The work is the widening of the support of features**, backend by backend, as [SUPPORTS.md](SUPPORTS.md) shows it. A feature is taken when a real module needs it; each item goes through `supports(...)`, and a
    backend that can not do it says so (`NotImplementedError`), never a silent no-op.
 
@@ -29,7 +29,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 | Item | What it is | Waits for |
 |---|---|---|
-| **WASI 0.2 on the one state** | a fused module of 0.2 runs over the `State` of `Preview1` | fusedwasi: its flat `wasi:*` imports are there (its neutral tests bind them on wasmtime-py and pywasm3); wasmhost has to offer them and test them on every backend |
+| **WASI 0.2 imports** | the flat `wasi:*` imports of a fused module of 0.2 answered from the `State` of `Preview1` (S0001) | fusedwasi has them and `find_import` resolves them; wasmhost has to offer them and test them on every backend that takes host functions; questions of S0001 first |
 | **B-604** | GC types: not added to wasmhost and not tested in it yet (the parser refuses the type forms), while wasmtime, Node and Bun run such a module directly | the parser (`_binary.py`) and tests per backend first; then a model of references in the API, which is the engines' (a GC reference has no Python value) |
 | **B-203** | `externref` and `funcref` as values of globals, and across instances | the engines and the API: reference types run inside a module on every backend measured in SUPPORTS.md, but no value of that kind crosses the Python API. Deferred 2026-10-16: no consumer, none expected |
 | **B-601** | exceptions: `WebAssembly.Tag` and `WebAssembly.Exception` in the API | the engines that have them (SUPPORTS.md: `exceptions-exnref`, `legacy-exceptions`) |
@@ -42,7 +42,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 ## Open decisions
 
-1. **The shape of WASI 0.2 in wasmhost.** Decided: fused modules, over fusedwasi's one state. Not decided: whether wasmhost ever takes a real component (the Component Model with its own types) or leaves that to engines
+1. **The shape of WASI 0.2 in wasmhost.** Decided: fused modules, answered from the `State` that `Preview1` holds (S0001; one class or two is its open question). Not decided: whether wasmhost ever takes a real component (the Component Model with its own types) or leaves that to engines
    that have it. Not planned.
 2. **The release of wasmhost** with the fix for Pythonista and StaSh (a standard stream with no `.buffer`) waits for the owner's word; fusedwasi, which it depends on, is released.
 
