@@ -52,7 +52,7 @@ both in a bare JavaScript engine:
 (`python examples/cpython/run.py -c "print(1)"`). No processes, sockets or `dlopen` there, as WASI preview1 has none.
 `python examples/cpython/run2.py -c "print(1)"` runs the same CPython built for `wasm32-wasip2` (`python2.wasm`, 8 MB, committed; `build_wasip2.sh` is meant to rebuild it, written from the recipe that made it but not yet re-run) on
 `Preview2`, the one core module of the component that CPython's own build makes. Its exit code is only 0 or 1 (`sys.exit(3)` gives 1: the export `wasi:cli/run#run` returns ok or err). Not Pyodide.
-Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+The network is open by default in `run2.py` (`-S inherit-network=n,allow-ip-name-lookup=n` closes it), so sockets work: run by hand on wasmtime, `pip install` of a pure-Python wheel from a folder and from a plain-http index of a local `http.server` (pip itself is not in the standard library zip: its wheel goes on `PYTHONPATH`, `--env HOME=...`). There is no `ssl` in this build (`_ssl` is not built), so no https. Not verified: https, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 
 Both keep their downloads in `$WASMHOST_CACHE`, else `~/.cache/wasmhost`, else `./.cache` where there is no usable
 home directory (PythonIDE).

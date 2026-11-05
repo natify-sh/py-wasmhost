@@ -42,3 +42,21 @@ def test_exit_code_is_ok_or_err(example: ModuleType) -> None:
     # `wasi:cli/run#run` returns ok or err: CPython's 3 is err, which is 1 (the interface, not a defect)
     assert example.main(["-c", "import sys; sys.exit(0)"]) == 0
     assert example.main(["-c", "import sys; sys.exit(3)"]) == 1
+
+
+LOOKUP = "import socket; print(socket.getaddrinfo('localhost', 80)[0][4][1])"
+
+
+def test_the_network_is_open_by_default(example: ModuleType, capfd: pytest.CaptureFixture[str]) -> None:
+    assert example.main(["-c", LOOKUP]) == 0  # the name lookup is allowed here, unlike in the library
+    assert capfd.readouterr().out.splitlines()[-1] == "80"
+
+
+def test_a_flag_closes_the_network(example: ModuleType, capfd: pytest.CaptureFixture[str]) -> None:
+    assert example.main(["-S", "inherit-network=n,allow-ip-name-lookup=n", "-c", LOOKUP]) == 1
+    assert "PermissionError" in capfd.readouterr().err
+
+
+def test_env_reaches_the_program(example: ModuleType, capfd: pytest.CaptureFixture[str]) -> None:
+    assert example.main(["--env", "WASMHOST_X=a=b", "-c", "import os; print(os.environ['WASMHOST_X'])"]) == 0
+    assert capfd.readouterr().out.splitlines()[-1] == "a=b"
