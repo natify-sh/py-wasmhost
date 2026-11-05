@@ -45,3 +45,12 @@ with an `externref` parameter, which the stubs of the JavaScript bridge need), t
 
 Not verified: that the conversion keeps the semantics of every exception path (only the paths that these programs use ran; C++ exceptions that the bridge would throw were not exercised, because the bridge is stubbed); the conversion is
 Binaryen's, not ours. Not done: the bridge to JavaScript, `dlopen` and packages, sockets, any CI.
+
+## One file, `uv run` (`pyodide_repl.py`)
+
+`uv run docs/experiments/pyodide_nojs/pyodide_repl.py` (or `-c "code"`): a PEP 723 script whose only dependency is `wasmtime`. It downloads the npm package `pyodide` 314.0.7
+(checked against the integrity hash of the registry), converts `pyodide.asm.wasm` once and starts `code.interact` in it. The conversion needs Binaryen's `wasm-opt` (130 or newer)
+on PATH, or named by `--wasm-opt` / `$WASM_OPT`: the script downloads no program (`brew install binaryen`, or `npm install -g binaryen`; in this session the npm one, run by Node, made the
+converted file). Why it is needed: wasmtime does not take the legacy exceptions of the shipped module, and the conversion rewrites them to `exnref` ones. By hand on Linux, from an empty cache: about 1 minute
+(download, conversion), later starts a few seconds; the REPL ran expressions, `print`, `json`, a traceback of `ZeroDivisionError` and a multi-line loop (input through a pipe; a real terminal was not tried).
+Not tried: Windows, macOS, an installed `wasm-opt` of another version than the npm 132.
