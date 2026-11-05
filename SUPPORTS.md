@@ -66,7 +66,7 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 | WASI program, run by a host of wasmhost | `wasmtime` | `node` | `bun` | `wasm3` | `jsc` | `gi-jsc` | `jscontext` | `pyodide` |
 |---|---|---|---|---|---|---|---|---|
 | `wasi_snapshot_preview1` (`Preview1`): arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
-| `wasi:*@0.2` of one component (`Preview2`): hello, environment, random, exit | yes | yes | yes | yes | yes | no | yes | yes |
+| `wasi:*@0.2` (`Preview2`): the probe program, one small component (hello, environment, random, exit) | yes | yes | yes | yes | yes | no | yes | yes |
 
 Measured by CI: 43 different lines of the log, from these combinations:
 - `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
