@@ -28,6 +28,8 @@ CELL = {"yes": "yes", "no": "no", "parser": "not added to wasmhost"}
 # "not added to wasmhost", not an engine limit. Measured by hand (2026-11-05, pywasm3 0.9.1.dev75), not by CI.
 NOT_ADDED = {
     ("wasm3", "import.global"): "not added to wasmhost (pywasm3 links a value; the global is not shared)",
+    ("wasm3", "threads"): "not added to wasmhost (a call from another thread ran in a trial)",
+    ("node", "table.signatures"): "not added to wasmhost (`node --experimental-wasm-type-reflection` gives `.type()`)",
 }
 
 
