@@ -293,6 +293,13 @@ class _Binding:
             raise RuntimeError("the program has no memory yet: bind(instance) first")
         return self.memory
 
+    def release(self) -> None:
+        """Let go of the memory of the instance. The functions linked into an engine (wasm3 keeps them in C, where the
+        garbage collector does not look) hold this object, so without this the instance, its runtime included, would
+        stay alive in a cycle for ever (and wasm3 has 128 runtimes at most in a process)."""
+        self.memory = None
+        self._view = None
+
     def enter(self) -> None:
         take_view: Callable[[], memoryview] | None = getattr(self.memory, "view", None)
         self._view = None
@@ -391,6 +398,7 @@ class Preview1:
         # the world of the program, shared by every instance that is made from this object
         self._state = state
         self._latest = _Binding(self._state)  # the instance that `memory` and `bind` mean: the last `imports()`
+        self._bindings = [self._latest]  # every binding this host made, to let go of at `close()`
         self._fresh = True  # the first binding has not been handed out by `imports()` yet
         self._of: weakref.WeakKeyDictionary[Instance, _Binding] = weakref.WeakKeyDictionary()
 
@@ -428,6 +436,7 @@ class Preview1:
             self._fresh = False
         else:
             self._latest = _Binding(self._state)
+            self._bindings.append(self._latest)
         binding = self._latest
         return {
             SNAPSHOT: {
@@ -482,7 +491,10 @@ class Preview1:
 
     def close(self) -> None:
         """Close the files the program opened and the preopened directories. The state stays closed: every descriptor,
-        the standard streams too, answers `EBADF` from now on. A State given with `state=` is its owner's to close."""
+        the standard streams too, answers `EBADF` from now on. A State given with `state=` is its owner's to close. The
+        memories of the instances are let go of in either case."""
+        for binding in self._bindings:
+            binding.release()
         if self._owns_state:
             self._state.close_all()
 

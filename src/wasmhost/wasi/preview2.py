@@ -142,7 +142,12 @@ class Preview2:
             self.close()
 
     def close(self) -> None:
-        """Close the files and streams of the world, unless it was given with `state=`."""
+        """Close the files and streams of the world, unless it was given with `state=`. The memory and the
+        `cabi_realloc` of the instance are let go of in either case: the functions linked into wasm3 hold this host
+        in C, where the garbage collector does not look, so without it the runtime would never be freed (and wasm3
+        has 128 at most in a process)."""
+        self._memories = []
+        self._reallocs = []
         if self._owns_state:
             self._state.close_all()
 

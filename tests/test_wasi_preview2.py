@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import sys
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -141,6 +142,8 @@ def test_the_environment_of_preview1_is_what_preview2_reads(session: str) -> Non
 
 @pytest.fixture
 def server() -> Iterator[list[bytes]]:
+    if sys.platform == "emscripten":  # Pyodide: Python has no sockets there
+        pytest.skip("Python in Pyodide has no sockets")
     seen: list[bytes] = []
     listener = socket.socket()
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # the port of the last test may be in TIME_WAIT
