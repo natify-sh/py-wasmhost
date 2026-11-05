@@ -146,7 +146,7 @@ jobs:
       - name: pytest --wasm-backend pyodide
         if: ${{ !cancelled() }}
         working-directory: ${{ runner.temp }}/pyodide
-        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest
+        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest -vv -rs # -vv: pyodide_run.mjs starts with -q, so this is the names of the tests
         env:
           FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
 

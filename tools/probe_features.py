@@ -2,7 +2,7 @@
 
 CI runs `tests/test_feature_probes.py` on every backend (the jobs of tests.yml run the suite once per backend, on every
 OS), and each run prints one line `WASMHOST-SUPPORTS {json}`: the engine, the OS, the Python, the features of the API
-(`backend.supports`), whether a WASI program ran, and which WebAssembly features the engine took
+(`backend.supports`), whether a WASI 0.1 and a WASI 0.2 program ran, and which WebAssembly features the engine took
 (`tests/feature_probes.py`). This script reads those lines from the logs of a CI run and writes the tables between the
 `probe` markers of SUPPORTS.md.
 
@@ -118,14 +118,20 @@ def markdown(records: list[dict]) -> str:
 
     out += [
         "",
-        "| WASI program (`Preview1` runs `wasi_hello`) | " + " | ".join(f"`{b}`" for b in backends) + " |",
+        "| WASI program, run by a host of wasmhost | " + " | ".join(f"`{b}`" for b in backends) + " |",
         "|---|" + "---|" * len(backends),
     ]
     out.append(
-        "| `wasi_snapshot_preview1`: arguments, a file in a preopen, `fd_write`, `proc_exit` | "
+        "| `wasi_snapshot_preview1` (`Preview1`): arguments, a file in a preopen, `fd_write`, `proc_exit` | "
         + " | ".join(cell(_by_platform(runs[b], lambda r: r["wasi"])) for b in backends)
         + " |"
     )
+    if any("wasi2" in r for r in records):  # the logs of a run from before `Preview2` have no such field
+        out.append(
+            "| `wasi:*@0.2` of one component (`Preview2`): hello, environment, random, exit | "
+            + " | ".join(cell(_by_platform(runs[b], lambda r: r.get("wasi2", "no"))) for b in backends)
+            + " |"
+        )
 
     out += ["", f"Measured by CI: {len(records)} different lines of the log, from these combinations:"]
     for b in backends:

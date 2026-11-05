@@ -17,7 +17,7 @@ no JIT for wasm); the same code must work on CPython, PyPy, free-threaded CPytho
   [waboros](https://github.com/natify-sh/waboros) (a pure-Python compiler). The owner decided on 2026-11-04 that wasmhost **goes its own way**: no shared `Store`, no common backend protocol, not a front end of either. The API stays
   `Instance(module, imports)` over engines that have their own state. Do not bring their designs in.
 * **Not an engine.** wasmhost compiles and runs nothing itself; it drives engines. Its own parser (`_binary.py`) only reads imports, exports and types.
-* **Not the component model.** WASI 0.2 is planned as fused core modules over fusedwasi's one state (B-606), not as a Component Model host.
+* **Not the component model.** WASI 0.2 runs as core modules (one component unbundled, or several fused by `meld`) over fusedwasi's `State` (S0001), not as a Component Model host.
 * **Not a place for a second API.** The API follows the JavaScript WebAssembly API as closely as possible (JavaScriptCore is the reference engine); a plain `int`/`float` form keeps working beside any new one.
 
 ## The architecture in five lines
@@ -32,11 +32,12 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
 
 ## Where it is, and what is next
 
-* **Done:** the core API on eight backends; globals, memories, tables and `Function`s; batches; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 and `wasi_unstable`
-  on fusedwasi; the CLI; examples (coreutils, wasm-clang, CPython for WASI, a shell for Pythonista).
+* **Done:** the core API on eight backends; globals, memories (several per module) and tables, `Function`s; batches; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 and
+  `wasi_unstable` (`Preview1`) and WASI 0.2 of one component (`Preview2`, with the network denied by default) on fusedwasi 0.1.0b1; the CLI (WASI 0.1 only for now); examples (coreutils, wasm-clang, CPython for WASI, a shell for Pythonista,
+  a WASI 0.2 one).
 * **What each backend supports now** is in [SUPPORTS.md](SUPPORTS.md), measured by CI (`tests/test_feature_probes.py`), not copied from any site.
-* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): WASI 0.2 on the one state (B-606); GC types in the parser (B-604); then the features the engines have and the API lacks
-  (B-601 exceptions, B-602 SIMD values and shared memory, B-603 memory64 and multi-memory in the API). A feature is taken when a real module needs it.
+* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): the command line for WASI 0.2 (S0001 step B: `-S` flags as in Wasmtime); a real application on `Preview2` (CPython for wasip2); several components through `meld`'s
+  import map (S0001 path 2); the guide to components (B-608); then GC types (B-604) and the features the engines have and the API lacks (B-601, B-602, memory64, B-605). A feature is taken when a real module needs it.
 * **Waiting for the owner:** the release with the Pythonista fix (a standard stream with no `.buffer`); the pull request of the branch `fusedwasi-p1` into `main`.
 
 ## Hard rules (short form; the full list is in CLAUDE.md)

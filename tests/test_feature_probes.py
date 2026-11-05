@@ -19,7 +19,7 @@ import wasm_builder as wb
 from feature_probes import run
 
 import wasmhost
-from wasmhost.wasi import preview1
+from wasmhost.wasi import Preview2, preview1
 
 
 def _engine(name: str) -> str:
@@ -65,6 +65,18 @@ def _wasi(backend: str) -> str:
         return "no"
 
 
+def _wasi2(backend: str) -> str:
+    """A WASI 0.2 program of one component (`tests/data/wasi2/one.wasm`) run by `Preview2`: "yes" when it says hello
+    and returns 0."""
+    out: list[bytes] = []
+    try:
+        data = (Path(__file__).parent / "data" / "wasi2" / "one.wasm").read_bytes()
+        code = Preview2(stdout=out.append).run(wasmhost.Module(data, backend=backend))
+        return "yes" if code == 0 and b"".join(out) == b"hello from wasip2\n" else "no"
+    except BaseException:  # noqa: BLE001 -- a backend that can not take host functions answers "no"
+        return "no"
+
+
 def test_what_the_backend_takes(session: str, capsys: pytest.CaptureFixture[str]) -> None:
     backend = session
     features = run(backend)
@@ -77,6 +89,7 @@ def test_what_the_backend_takes(session: str, capsys: pytest.CaptureFixture[str]
             wasmhost.get_backend().features
         ),  # the live backend: some add strings when the engine starts (`imports`)
         "wasi": _wasi(backend),
+        "wasi2": _wasi2(backend),
         "features": features,
     }
     with capsys.disabled():  # into the log of CI whatever -q, -v or -s say

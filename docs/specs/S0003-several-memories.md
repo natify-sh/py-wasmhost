@@ -1,6 +1,6 @@
 # S0003: several memories of one instance
 
-Status: approved 2026-11-05 (the owner: Option A, start with S0003)
+Status: implemented 2026-11-05 (approved the same day, the owner: Option A; CI green on `be18649`: tests on every backend, the self-test step)
 Backlog: B-603 (the multi-memory part; `memory64` is not in this spec)
 
 ## Goal

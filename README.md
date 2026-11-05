@@ -517,7 +517,7 @@ offers `wasi_unstable`, the first snapshot, which older toolchains (wasienv, was
 `examples/coreutils.py` imports from. It is checked against the specification's own `witx` files of both snapshots (names, signatures,
 the numbers of errors and flags, the layout of the records), and its self-test step runs a small WASI program of each on every backend.
 
-It runs on the `pyodide` backend too (wasmhost inside Pyodide; the self-test step and the tests pass there; with fusedwasi as the host the self-test was run again, 35 of 35, and the whole suite is the CI job "Pyodide"), with what Emscripten
+It runs on the `pyodide` backend too (wasmhost inside Pyodide; the self-test step and the tests pass there; with fusedwasi as the host the self-test passes, and the whole suite is the CI job "Pyodide"), with what Emscripten
 lacks: the files a program sees are Pyodide's virtual file system (on Node a real folder can be mounted with `mountNodeFS`), there are no
 symbolic links (`path_symlink` and `path_readlink` fail). Python there has no per-thread CPU clock, so `thread_cputime_id` reads the process's CPU
 clock, which is the same thing with one thread.
@@ -582,6 +582,7 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 - **Options.** The same as `Preview1` (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), `run(module)`, or `instantiate(module)` and `start(instance)`; `bind(instance, memories=("memory",), reallocs=("cabi_realloc",))` takes other export names.
 - **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup`, `http=True` and `http_check` are fusedwasi's. A blocking socket call holds the backend (one call at a time).
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
+- **Try it:** `python examples/wasi2.py hello` (a WASI 0.2 program says hello), `python examples/wasi2.py sock` (a TCP client: the network is denied) and `python examples/wasi2.py sock --network` (it connects to a local server); see `examples/wasi2/README.md`.
 - Not built yet: the command line (`wasmhost run`, `-S` flags) and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
 
 ## Try it on a device
@@ -679,7 +680,7 @@ which it is meant to be done. [SUPPORTS.md](SUPPORTS.md) says what each backend 
 - **Newer proposals**: no API for `WebAssembly.Tag` and `WebAssembly.Exception` (the self-test only reports which
   encodings of exceptions an engine takes), SIMD, `memory64`, multi-memory, GC types.
   Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are not added to wasmhost yet, whatever the engine can do: B-604.)
-- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` (see [WASI](#wasi)); not yet: sockets, and a safe open through
+- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` and, for a core module of one WASI 0.2 component, by `wasmhost.wasi.Preview2` (see [WASI](#wasi), sockets included, denied by default); not yet: several components, the command line for 0.2, and a safe open through
   `openat` (the check of a name and the open are two steps now). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
 
 ## Test
