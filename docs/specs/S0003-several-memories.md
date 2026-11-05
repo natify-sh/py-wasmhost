@@ -1,6 +1,6 @@
 # S0003: several memories of one instance
 
-Status: draft
+Status: approved 2026-11-05 (the owner: Option A, start with S0003)
 Backlog: B-603 (the multi-memory part; `memory64` is not in this spec)
 
 ## Goal
@@ -30,8 +30,8 @@ Measured on 2026-11-05 on this machine (Linux, wasmtime-py 49.0.0, Node 22.22.0,
 ## The contract
 The API **may need nothing new** for modules whose memories are all exported or imported: each is a `Memory` already. What is open is how the list in module order is made, see the questions. Fixed by this spec whatever the
 answer is:
-* A memory the module neither exports nor imports is reported, never silently skipped: whoever asks for "memory number N" and it is not reachable gets an error that names the number and says what the module would
-  have to export.
+* **Option A is chosen (the owner, 2026-11-05): no new API.** Every memory a module exports or imports is a `Memory` by its name, which already works (Context). The list of the memories of a fused module, in the order of its
+  components, and the error for a memory that is neither exported nor imported, belong to the host of WASI 0.2 (S0001), which takes the names from the caller; they are not part of this spec.
 * `max_memory` (`limit_memory`) holds every memory the module defines to the limit, not only the first; a test with three memories.
 * A backend whose engine refuses a module with several memories says so with the engine's message in a `CompileError`; there is no new `supports` string for it (SUPPORTS.md shows it, from CI).
 * No change for a module with one memory.
@@ -48,7 +48,7 @@ answer is:
 ## Tests and probes
 * a module with three memories (two exported, one imported or defined), on each backend of the matrix: read, write, grow, type, limits of each; the answers above;
 * `max_memory` over several memories;
-* a probe row `multi-memory-api` in `tests/feature_probes.py`, if the questions are answered so that the API has something to probe beyond the existing module-level `multi-memory` row;
+* no new probe: the API has nothing to probe beyond the module-level `multi-memory` row of `tests/feature_probes.py`;
 * the self-test step for several memories (it asks `supports` first, and reports the JavaScriptCore family as not supported).
 
 ## Out of scope
