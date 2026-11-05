@@ -40,7 +40,6 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 - the **pull request** of the branch `fusedwasi-p1` into `main` (87 commits since 2026-10-23, counted 2026-11-05 against `origin/main`);
 - the **release** of wasmhost with the Pythonista fix (a standard stream with no `.buffer`) and now `Preview2`;
 - a **run on the device** (iPhone, Pythonista): the self-test, which has steps for several memories and for WASI 0.2;
-- **a decision:** CLAUDE.md says the package depends only on `fusedwasi`; fusedwasi 0.1.0b3 brings `h11` (pure Python, imported only by a module that imports `wasi:http`). Keep the rule as written, or let fusedwasi's own pure-Python dependencies stand?
 
 ## Related
 

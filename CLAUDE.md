@@ -12,7 +12,7 @@ waboros), WASI is fusedwasi 0.1 and 0.2 over one state, and the work is to widen
 The maintainer communicates in Ukrainian; code, comments, commit messages and docs are in English.
 
 ## Hard rules
-* **The package depends only on `fusedwasi`**, and runs on Python 3.10 with the standard library (Pythonista). Engines are optional extras or dev dependencies; a backend whose engine is missing says so, and is skipped.
+* **The package depends only on `fusedwasi`** and on what fusedwasi itself needs, if that is pure Python (the owner, 2026-11-05: today `h11`, for `wasi:http`), and runs on Python 3.10 with the standard library (Pythonista). Engines are optional extras or dev dependencies; a backend whose engine is missing says so, and is skipped.
 * **The API stays close to the JavaScript WebAssembly API** (JavaScriptCore is the reference). The library is an alpha, so breaking old code for a cleaner API is allowed; when a new form is added, the old plain
   `int`/`float` form keeps working. No wrapper value types, no second API.
 * **What an engine can not do is a `NotImplementedError` and `backend.supports(...) == False`**, never a silent no-op and never a fake.
