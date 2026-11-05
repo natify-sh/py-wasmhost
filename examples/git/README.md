@@ -11,7 +11,7 @@ host:
   network only: `clone`, `fetch`, `push`. `pull` is a `fetch` by libgit2 and a `merge` (or `rebase`) by git.
 
 They work on the same directory because they write the same repository format. WASI preview1 has no sockets and no
-processes, which is why git alone cannot reach a server: libgit2 gets its connections from the host.
+processes, which is why git alone cannot reach a server: libgit2 gets its connections from the host. (WASI 0.2 has `wasi:sockets`, but these modules are preview1.)
 
     wasmgit clone https://github.com/user/repo
     cd repo

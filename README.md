@@ -75,7 +75,7 @@ a Python dict: nothing real is touched. It is made for Pythonista (`input()` at 
 
 `examples/git/` is a whole git client for Pythonista (StaSh's `git clone`, `commit`, `merge`, `push`, ...): git itself and libgit2
 built to WASI with `zig cc`, with Python as their WASI host; libgit2 does the network (http and https), served by the host
-through four imports, because WASI preview1 has no sockets. See [examples/git/README.md](examples/git/README.md).
+through four imports, because WASI preview1 has no sockets (WASI 0.2 has them, but these modules are preview1). See [examples/git/README.md](examples/git/README.md).
 
 `examples/coremark.py` runs CoreMark (the wasm3 project's build, in `examples/wasm/`) on every backend that starts here,
 to compare their speed. A runtime that finishes the last pass in under 10 s is not scored by CoreMark itself, so it
