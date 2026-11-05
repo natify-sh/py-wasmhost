@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 import test_elem_signatures
 
@@ -46,6 +48,7 @@ def test_module_constants_are_the_test_modules() -> None:
     assert _selftest.EXCEPTIONS_LEGACY == wb.exceptions(final=False)
     assert _selftest.WASI_HELLO == wb.wasi_hello()
     assert _selftest.WASI_HELLO_UNSTABLE == wb.wasi_hello("wasi_unstable")
+    assert _selftest.WASI2_HELLO == (Path(__file__).parent / "data" / "wasi2" / "one.wasm").read_bytes()
 
 
 def test_main(capsys: pytest.CaptureFixture[str], session: str) -> None:

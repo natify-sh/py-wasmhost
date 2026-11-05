@@ -312,6 +312,43 @@ def _signal(number: int) -> int:
     return Errno.nosys
 
 
+def make_state(
+    args: Sequence[str],
+    env: Mapping[str, str] | None,
+    preopens: Mapping[str, str | os.PathLike[str]] | None,
+    stdin: bytes | bytearray | Any | None,
+    stdout: Callable[[bytes], object] | Any | None,
+    stderr: Callable[[bytes], object] | Any | None,
+    readonly: bool | Collection[str],
+    **policy: Any,
+) -> State:
+    """The `State` for the options of a host (`Preview1`, `Preview2`); `policy` goes to the `State` as it is."""
+    source = _Source(stdin)
+    out, err = _sink(stdout, lambda: sys.stdout), _sink(stderr, lambda: sys.stderr)
+    names: set[str] = set()
+    if isinstance(readonly, str):
+        names = {readonly}
+    elif not isinstance(readonly, bool):
+        names = {str(name) for name in readonly}
+    if unknown := names - set(preopens or {}):
+        raise ValueError(f"readonly: no preopen of that name: {sorted(unknown)}")
+    directories: list[tuple[str, str, bool]] = []
+    for name, host in (preopens or {}).items():
+        real = os.path.realpath(host)
+        if not os.path.isdir(real):
+            raise NotADirectoryError(f"preopen {name!r}: {os.fspath(host)!r} is not a directory")
+        directories.append((real, str(name), not (readonly is True or name in names)))
+    return State(
+        args=[str(a) for a in args],
+        env=[(str(k), str(v)) for k, v in (env or {}).items()],
+        stdin=_Stdin(source),
+        stdout=_Stdout(out),
+        stderr=_Stdout(err),
+        preopens=directories,
+        **policy,
+    )
+
+
 class Preview1:
     """The `wasi_snapshot_preview1` calls of one program run.
 
@@ -321,6 +358,10 @@ class Preview1:
     written to or changed in (the rights that change something are taken away: a call that does answers
     `ENOTCAPABLE`). `stdin` is bytes or an object with `read(n)` (default: empty); `stdout` and `stderr` are callables
     that take bytes, or objects with `write(bytes)` (default: the interpreter's text streams).
+
+    `state=` makes the host use a `fusedwasi.State` that exists already (the one of another `Preview1` or of a
+    `Preview2`, see `state`) as the world of the program: the options above are then not given (a `TypeError`). The
+    host that made the State closes it; `close()` of a host that was given one leaves it open.
 
     Signals: `proc_raise` answers `ENOSYS` (`EINVAL` for a number the specification does not have) and the program goes
     on; use `wasmhost.wasi.preview1.Preview1` as it is for a program that does not need more.
@@ -336,35 +377,22 @@ class Preview1:
         stderr: Callable[[bytes], object] | Any | None = None,
         *,
         readonly: bool | Collection[str] = False,
+        state: State | None = None,
     ) -> None:
-        self.args = [str(a) for a in args]
-        self.env = [f"{k}={v}" for k, v in (env or {}).items()]
-        variables = [(str(k), str(v)) for k, v in (env or {}).items()]
-        self._stdin = _Source(stdin)
-        self._stdout = _sink(stdout, lambda: sys.stdout)
-        self._stderr = _sink(stderr, lambda: sys.stderr)
-        names: set[str] = set()
-        if isinstance(readonly, str):
-            names = {readonly}
-        elif not isinstance(readonly, bool):
-            names = {str(name) for name in readonly}
-        if unknown := names - set(preopens or {}):
-            raise ValueError(f"readonly: no preopen of that name: {sorted(unknown)}")
-        directories: list[tuple[str, str, bool]] = []
-        for name, host in (preopens or {}).items():
-            real = os.path.realpath(host)
-            if not os.path.isdir(real):
-                raise NotADirectoryError(f"preopen {name!r}: {os.fspath(host)!r} is not a directory")
-            directories.append((real, str(name), not (readonly is True or name in names)))
+        owns_state = state is None
+        if state is not None:
+            if args or env or preopens or stdin is not None or stdout is not None or stderr is not None or readonly:
+                raise TypeError(
+                    "state= is the whole world of the program: args, env, preopens, ... are not given with it"
+                )
+            self.args, self.env = [], []
+        else:
+            self.args = [str(a) for a in args]
+            self.env = [f"{k}={v}" for k, v in (env or {}).items()]
+            state = make_state(args, env, preopens, stdin, stdout, stderr, readonly)
+        self._owns_state = owns_state
         # the world of the program, shared by every instance that is made from this object
-        self._state = State(
-            args=self.args,
-            env=variables,
-            stdin=_Stdin(self._stdin),
-            stdout=_Stdout(self._stdout),
-            stderr=_Stdout(self._stderr),
-            preopens=directories,
-        )
+        self._state = state
         self._latest = _Binding(self._state)  # the instance that `memory` and `bind` mean: the last `imports()`
         self._fresh = True  # the first binding has not been handed out by `imports()` yet
         self._of: weakref.WeakKeyDictionary[Instance, _Binding] = weakref.WeakKeyDictionary()
@@ -377,6 +405,11 @@ class Preview1:
     @memory.setter
     def memory(self, memory: _Memory | None) -> None:
         self._latest.memory = memory
+
+    @property
+    def state(self) -> State:
+        """The world of the program (files, arguments, environment, streams): give it to `Preview2(state=...)`."""
+        return self._state
 
     # --- running
 
@@ -442,8 +475,9 @@ class Preview1:
 
     def close(self) -> None:
         """Close the files the program opened and the preopened directories. The state stays closed: every descriptor,
-        the standard streams too, answers `EBADF` from now on."""
-        self._state.close_all()
+        the standard streams too, answers `EBADF` from now on. A State given with `state=` is its owner's to close."""
+        if self._owns_state:
+            self._state.close_all()
 
     def __enter__(self) -> Preview1:
         return self

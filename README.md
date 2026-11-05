@@ -563,6 +563,27 @@ code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `
 - **Not supported:** sockets (`ENOTSOCK`), signals (`ENOSYS`: `proc_raise` does not end the program here, whereas in `wasmext` it does; wasmhost gives fusedwasi a `signal` hook that answers `ENOSYS`, since without one fusedwasi answers `ENOTSUP`; signal 0, "none", is success (0) and a number above 30 `EINVAL`, both answered by fusedwasi itself). A host function that sleeps (`poll_oneoff`) is outside what
   `timeout` and `fuel` can stop.
 
+### WASI 0.2
+
+`wasmhost.wasi.Preview2` runs the core module of **one** WASI 0.2 component: what `wasm-tools component unbundle` leaves (one memory exported as `memory`, an export
+`cabi_realloc`, the export `wasi:cli/run@0.2.N#run`, flat `wasi:*@0.2.N` imports), on every backend that takes host functions. Its imports are answered by fusedwasi over a
+`State`; a real component is refused by `Module` as before, and a module of several components (several memories) or of WASI 0.3 is not supported (a `wasi:` import fusedwasi has no function for is a `LinkError`).
+
+```python
+from wasmhost import Module
+from wasmhost.wasi import Preview1, Preview2
+
+code = Preview2(env={"A": "1"}, stdout=out.append).run(
+    Module(open("prog.wasm", "rb").read())
+)  # 0 ok, 1 err, or the code of wasi:cli/exit
+shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files, arguments, environment and streams
+```
+
+- **Options.** The same as `Preview1` (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), `run(module)`, or `instantiate(module)` and `start(instance)`; `bind(instance, memories=("memory",), reallocs=("cabi_realloc",))` takes other export names.
+- **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup`, `http=True` and `http_check` are fusedwasi's. A blocking socket call holds the backend (one call at a time).
+- **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
+- Not built yet: the command line (`wasmhost run`, `-S` flags) and several components. See [S0001](docs/specs/S0001-wasi-0.2-on-one-state.md) and B-606.
+
 ## Try it on a device
 
 The package carries a self-test, since nothing else can be run in Pythonista/Python IDE to see whether this works there:
