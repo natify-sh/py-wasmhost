@@ -130,7 +130,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: natify-sh/fusedwasi
-          ref: v0.1.0a1
+          ref: v0.1.0b1
           path: fusedwasi-src
 
       - name: Install Pyodide

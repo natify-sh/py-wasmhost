@@ -16,6 +16,8 @@ Measured on 2026-11-05 on this machine (Linux, wasmtime-py 49.0.0, Node 22.22.0,
   can't make a `Memory` on its own (`supports("import.memory")` is "no"), so it can't take imported memories at all.
 * **A memory that is neither exported nor imported is not reachable** from Python by any API: the engines' own embedding APIs reach exports and imports only.
 * CI (SUPPORTS.md, run of `fde7d0d`): a module with two memories runs on `wasmtime`, `node`, `bun`, `wasm3` and `pyodide`, and **not** on `jsc`, `gi-jsc`, `jscontext` (the engine refuses it).
+* **What JavaScriptCore says** (CI run of `d22dae0`, the same text from `jsc`, `gi-jsc` and `jscontext`, with `pytest -rs`): for a module that defines several memories, `WebAssembly.Module doesn't parse at byte 33: Memory section has more than one memory, WebAssembly currently only allows zero or one`; for a module that imports two,
+  `WebAssembly.Module doesn't parse at byte 46: there can at most be one Memory section for now`. Both come as a `CompileError` from `new WebAssembly.Module(...)`; the tests of this spec skip with them, and the self-test step says "not available on this backend". On these three, 1 of the 11 tests runs (the single-memory one) and 10 are skipped.
 * The parser keeps the types of all memories in module order (`memory_types`, imports first, as the binary numbers them) and `limit_memory` (`max_memory`) rewrites every memory the module defines; neither has a test
   with more than one memory that this spec knows of.
 * **Fused modules export their memories (checked 2026-11-05 with `meld` 0.67.0 from PyPI, two toy components).** `meld fuse a.wasm b.wasm` (default `--memory auto`, which always resolves to `multi`) gave a core module
