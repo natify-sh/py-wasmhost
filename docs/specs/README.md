@@ -25,3 +25,4 @@ replaces it; the file names that one). An approved spec is changed in the spec f
 |---|---|---|
 | [S0001](S0001-wasi-0.2-on-one-state.md) | WASI 0.2 (fused modules) over the one fusedwasi state (B-606) | draft |
 | [S0002](S0002-gc-types.md) | GC types: the parser, the probes and the tests per backend (B-604) | draft |
+| [S0003](S0003-several-memories.md) | several memories of one instance, the prerequisite of S0001 (B-603) | draft |
