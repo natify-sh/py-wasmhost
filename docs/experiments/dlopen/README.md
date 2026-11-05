@@ -57,8 +57,11 @@ Results:
   `msgpack._cmsgpack` packs and unpacks. The only changes: the file suffix `.cpython-315-wasm32-emscripten.so` has to be added to the extension
   finder (`t_emscripten_msgpack.py`), and the main must export the libc functions the wheel imports (list them with `wasm-tools print`).
 * `bitarray` cp315 Emscripten wheel: import, `bitarray("1011")`, `extend`, `count` work; `tolist()` traps with `indirect call type mismatch`
-  in `cfunction_vectorcall_NOARGS`. Inferred, not yet confirmed: CPython has `Python/emscripten_trampoline.c` (`PY_CALL_TRAMPOLINE`) that tolerates
-  C functions called through a pointer of another signature; WASI has no such thing.
+  in `cfunction_vectorcall_NOARGS`. **Confirmed cause** (read from the `.so`): the `PyMethodDef` of `tolist` has `flags=4` (`METH_NOARGS`, which CPython calls as
+  `f(self, NULL)`), but table slot 57 holds a function of type `(i32) -> i32`: the C function is declared with one argument and cast. A wasm `call_indirect`
+  checks the type and traps. Emscripten CPython hides this with `Python/emscripten_trampoline.c` (`PY_CALL_TRAMPOLINE`, compiled only under
+  `__EMSCRIPTEN__`): it calls the function from JavaScript, `wasmTable.get(func)(a, b, c)`, and JS does not check arity. WASI CPython has no such path.
+  A fix needs a trampoline on our side, for example a host import `env.py_tramp(func, a1, a2, a3)` in a patched `methodobject.c`, with the host calling the table entry with its own arity.
 * `contourpy` (C++, pybind11) imports about 300 C++ runtime symbols (libc++, libc++abi, `_Unwind_CallPersonality`, `__wasm_lpad_context`): the main would need libc++ and wasm exception handling. Not tried.
 * numpy/scipy/pillow have no Emscripten wheel on PyPI (pandas cp312, pydantic-core cp314 only); the Pyodide CDN is not reachable from the sandbox, so numpy was not tried.
 
