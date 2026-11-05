@@ -80,11 +80,11 @@ jobs:
       # JSContext through rubicon-objc, which is as near to Pythonista's objc_util as CI gets.
       - name: "pytest --wasm-backend jsc (macOS, JavaScriptCore.framework)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' }}
-        run: uv run --locked pytest -v --wasm-backend jsc
+        run: uv run --locked pytest -v -rs --wasm-backend jsc
 
       - name: "pytest --wasm-backend jscontext (macOS, a real JSContext through rubicon-objc)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' && !startsWith(matrix.python-version, 'pypy') }}
-        run: uv run --locked pytest -v --wasm-backend jscontext
+        run: uv run --locked pytest -v -rs --wasm-backend jscontext
 
       - name: Examples
         run: |
@@ -181,26 +181,26 @@ jobs:
           uv pip install -e . pytest
 
       - name: pytest --wasm-backend gi-jsc (JIT on)
-        run: .venv/bin/python -m pytest -v --wasm-backend gi-jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend gi-jsc
         env:
           JSC_useJIT: "true"
 
       - name: pytest --wasm-backend gi-jsc (JIT off, as on iOS)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend gi-jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend gi-jsc
         env:
           JSC_useJIT: "false"
 
       # The same engine through its C API (ctypes), no PyGObject: it also takes host functions (imports).
       - name: pytest --wasm-backend jsc (JIT on)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend jsc
         env:
           JSC_useJIT: "true"
 
       - name: pytest --wasm-backend jsc (JIT off, as on iOS)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend jsc
         env:
           JSC_useJIT: "false"
 
