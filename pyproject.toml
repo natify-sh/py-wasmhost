@@ -32,8 +32,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-# fusedwasi is the WASI host for 0.1 and 0.2 (pure Python, one `State`). 0.1.0b2 is a pre-release: the specifier names one, so pip and uv take it without --pre. 0.1.0b1 and later export `State`, `Guest` and `Exit` at the top level; 0.1.0b2 has `wasi:http` (unstable, fusedwasi says).
-dependencies = ["fusedwasi>=0.1.0b2"]
+# fusedwasi is the WASI host for 0.1 and 0.2 (pure Python, one `State`). 0.1.0b2 is a pre-release: the specifier names one, so pip and uv take it without --pre. 0.1.0b1 and later export `State`, `Guest` and `Exit` at the top level; 0.1.0b2 has `wasi:http` (unstable, fusedwasi says); 0.1.0b3 does it on `h11` (pure Python, a dependency of fusedwasi that is imported only when a module imports `wasi:http`).
+dependencies = ["fusedwasi>=0.1.0b3"]
 
 [project.scripts]
 wasmhost = "wasmhost._cli:main"

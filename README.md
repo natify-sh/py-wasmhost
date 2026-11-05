@@ -551,7 +551,7 @@ code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `
   folder (`..`, an absolute name, a link that points out) is refused with `ENOTCAPABLE`. On POSIX a name is walked from the folder one step at a time with `openat`, and a link met on the way is read and
   its target put in front of the rest of the name (a name that passes through a folder that is not there
   is `ENOENT`, not `ENOTCAPABLE`: it is walked as it comes). The files are fusedwasi's, and so are the limits of this; what its authors report
-  (2026-11-05, their draft spec S0015; we did not repeat it): on POSIX a folder holds against a change of the tree under the walk, because the kernel is given one name at a time
+  (2026-11-05, their [S0015](https://github.com/natify-sh/fusedwasi/blob/v0.1.0b3/docs/specs/S0015.md), a draft at fusedwasi 0.1.0b3 with options A to F: what a preopen promises, a regression test, `openat2`, and for Windows a walk by handle; we did not repeat it): on POSIX a folder holds against a change of the tree under the walk, because the kernel is given one name at a time
   relative to a directory it already holds, with no link followed by the kernel; a stress run (Linux, the Python twin, 8 s: 82,602 opens while the tree was changed 126,670 times) found
   no escape. That is one run, not a proof, and the C twin was read, not run. **A folder shared with another process:** a guest can plant a link that leads out (WASI 0.2
   `symlink-at` refuses only an absolute target; WASI 0.1 `path_symlink` refuses a link that leaves), which the walk never follows but another process that reads the same folder will, so treat the links

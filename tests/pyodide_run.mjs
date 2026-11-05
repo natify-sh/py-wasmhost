@@ -52,7 +52,9 @@ from wasmhost import _cli
 status = _cli.main(["self", "test", "--backend", "pyodide"])
 `;
 } else if (mode === "pytest") {
-  await py.loadPackage(["pytest", "packaging"]);
+  await py.loadPackage(["pytest", "packaging", "micropip"]);
+  // h11 (pure Python) is what fusedwasi 0.1.0b3 serves wasi:http with; it is imported only by a module that imports wasi:http
+  await py.runPythonAsync(`import micropip; await micropip.install("h11")`);
   code = `
 import os, sys, pytest
 if os.path.isdir("/fusedwasi_src"):
