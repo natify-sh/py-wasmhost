@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 import wasm_builder as wb
 from fusedwasi.p2.wasi_p2_core import USE_TCP_BIND, USE_TCP_CONNECT, USE_UDP_BIND, USE_UDP_CONNECT, USE_UDP_OUTGOING
+from test_wasi_http import AUTHORITY
+from test_wasi_http import server as http_server  # noqa: F401  (a fixture)
 
 import wasmhost
 from wasmhost import _cli
@@ -198,7 +200,18 @@ def test_http_is_denied_without_the_flag(session: str, need_imports: None) -> No
     assert run(session, "-S", "http=n", str(DATA / "http.wasm")) == 1
     assert (
         run(session, "-S", "http", str(DATA / "http.wasm")) == 0
-    )  # sent to 127.0.0.1:9: the refusal is the answer, not the call
+    )  # sent to 127.0.0.1:47124, nobody listens: the refusal is the answer, not the call
+
+
+def test_http_flag_reaches_a_real_server(
+    capsys: pytest.CaptureFixture[str],
+    session: str,
+    need_imports: None,
+    http_server: list[tuple[str, str, dict[str, str]]],  # noqa: F811
+) -> None:
+    assert run(session, "-S", "http", str(DATA / "http.wasm")) == 0
+    assert capsys.readouterr().out == "200"
+    assert [(c, p, h["host"]) for c, p, h in http_server] == [("GET", "/x?q=1", AUTHORITY)]
 
 
 def test_http_flag_on_a_wasi_01_module_is_an_error(
