@@ -80,6 +80,11 @@ through four imports, because WASI preview1 has no sockets. See [examples/git/RE
 to compare their speed. A runtime that finishes the last pass in under 10 s is not scored by CoreMark itself, so it
 prints the pass time too.
 
+`examples/jitcheck.py` is a quick check of whether the backend has a JIT: it times a tight wasm loop (50 million additions) on the active
+backend and prints the speed in millions of iterations per second, then "JIT likely" above 300 and "interpreter likely (no JIT)" below it. It is
+for a device, where JavaScriptCore may run without JIT (as on iOS without the permission): `python examples/jitcheck.py`. The threshold is a
+rough one, not a measurement of the JIT itself; on wasmtime here it printed 2398 M iter/s, "JIT likely".
+
 - **Types.** The JavaScript API can't tell a function's signature, and it matters (an `i64` argument must reach
   JavaScript as a BigInt), so the binary's type, import, function, global and export sections are read in
   Python. `Module.exports(module)` and `Module.imports(module)` describe a module with them, and
