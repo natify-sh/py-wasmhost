@@ -20,31 +20,27 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 ## Where it is (2026-11-05)
 
-- Runs core modules on `wasmtime`, `wasm3` (pywasm3), `node`, `bun`, `jsc`, `gi-jsc`, `jscontext` and `pyodide`; what an engine can not do is `supports(...) == False`, not faked.
-- **WASI 0.1**: `wasmhost.wasi.Preview1` over fusedwasi 0.1.0b2 (with `wasi_unstable`). **WASI 0.2, one component**: `wasmhost.wasi.Preview2` (S0001 step A, built; steps B and C and path 2 are the next three bullets): hello, environment, random, exit, and TCP sockets with the
-  network denied by default; shown by the tests on every backend that takes host functions.
-- **Several memories** (S0003, built): every exported or imported memory of a module is its own `Memory`; `max_memory` holds all of them; the JavaScriptCore engines refuse such a module (their message is in the spec).
-- **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`).
-- Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added to wasmhost yet.
-
-- **WASI 0.2 of several components** (S0004, built 2026-11-05, CI green on `baef8b8`): `Preview2(import_map=)` and `wasmhost run --import-map` route each `wasi:*` import by `meld`'s import map; two small components with real WASI calls run on wasmtime, wasm3, Node, Bun and Pyodide. The JavaScriptCore engines refuse a module of several memories (the tests skip with their message), but a `meld --memory shared` fusion (one memory, one `cabi_realloc`) runs there as one component: jsc and jscontext on macOS, jsc on WebKitGTK.
-- **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime and `http` (step C, built: tested through the `http_send` hook, not against a real server; fusedwasi calls `wasi:http` unstable).
-- **A real application on `Preview2`** (built 2026-11-05, CI green on `b50b8aa`): the official CPython built for `wasm32-wasip2` with wasi-sdk 34 and no patch, unbundled, run by `examples/cpython/run2.py` (`python2.wasm`, 8 MB, committed); wasmtime, wasm3, Node verified by hand, Bun by `tests/test_cpython_wasip2_example.py`. The exit code is only 0 or 1 (the interface of `wasi:cli/run`). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+- **Core API** on eight backends (`wasmtime`, `wasm3`, `node`, `bun`, `jsc`, `gi-jsc`, `jscontext`, `pyodide`; what an engine can not do is `supports(...) == False`, not faked): `Module`, `Instance`, `Memory`, `Table`, `Global`, `Function`, batches, async and threads; **several memories** (S0003; the JavaScriptCore engines refuse such a module); **limits for untrusted code** (`max_memory`, `timeout`, `fuel`, `isolated`, where the engine can).
+- **WASI 0.1**: `Preview1` (with `wasi_unstable`) over fusedwasi 0.1.0b3. **WASI 0.2**: `Preview2`, one `State` shared with `Preview1`; the network denied by default; one component (hello, environment, random, exit, TCP sockets), and **several components fused by `meld`** through `import_map=` (S0004, CI green on `baef8b8`; the JavaScriptCore engines run only a `--memory shared` fusion); `wasi:http` incl. `http_check` and `http_send`, run against a real local server (`ab99e81`, plain http; fusedwasi calls it unstable and needs `h11`).
+- **Command line**: `wasmhost run` tells a module of 0.2 from one of 0.1, takes `-S inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp`, `http` and `--import-map` (step B, CI green on `8630d47`; step C on `07656d9`); `self test`; `bench`.
+- **A real application on `Preview2`**: the official CPython for `wasm32-wasip2` (wasi-sdk 34, no patch), `examples/cpython/run2.py` (`python2.wasm`, 8 MB), CI green on `b50b8aa`; the network is open there by default, `pip` installs from a wheel on `PYTHONPATH` (a folder, a plain-http index; run by hand on wasmtime); no `ssl` in that build. Exit code only 0 or 1. Not verified: https, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+- **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`). Most WebAssembly 2.0 and 3.0 proposals run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added (B-604).
 
 ## What is next, in this order
 
 | Step | What it is | Waits for |
 |---|---|---|
-| **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing now: the application above is done (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
+| **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing: unblocked (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
 | **B-303, B-701x** | batch read and write, Deno / a pure-Python interpreter / Android | nothing in principle |
 
 ## Waiting for the owner
 
-- the **pull request** of the branch `fusedwasi-p1` into `main` (78 commits since 2026-10-23, counted 2026-11-05 against `origin/main`);
+- the **pull request** of the branch `fusedwasi-p1` into `main` (87 commits since 2026-10-23, counted 2026-11-05 against `origin/main`);
 - the **release** of wasmhost with the Pythonista fix (a standard stream with no `.buffer`) and now `Preview2`;
-- a **run on the device** (iPhone, Pythonista): the self-test, which has steps for several memories and for WASI 0.2.
+- a **run on the device** (iPhone, Pythonista): the self-test, which has steps for several memories and for WASI 0.2;
+- **a decision:** CLAUDE.md says the package depends only on `fusedwasi`; fusedwasi 0.1.0b3 brings `h11` (pure Python, imported only by a module that imports `wasi:http`). Keep the rule as written, or let fusedwasi's own pure-Python dependencies stand?
 
 ## Related
 

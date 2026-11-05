@@ -87,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--inherit-env", action="store_true", help="give the program all the variables of this process (--env wins)"
     )
-    parser.add_argument("--argv0", metavar="ARGV0", help="the program's argv[0] (default: the module's path)")
+    parser.add_argument("--argv0", metavar="ARGV0", help="the program's argv[0] (default: the module's file name)")
     parser.add_argument(
         "-S",
         "--wasi",

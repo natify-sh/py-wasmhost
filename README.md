@@ -3,7 +3,8 @@
 WebAssembly from **CPython, PyPy and Pythonista**, with the JavaScript WebAssembly API: modules, instances, memory,
 globals, and host functions (Python callables the module calls). It runs on whichever backend is available:
 JavaScriptCore's `JSContext` in Pythonista on iOS, JavaScriptCore, Node or Bun on a computer, or, when installed,
-wasmtime or wasm3 (eight backends in all, see [Backends](#backends)). Plain Python, no C extension of its own; its one dependency, [fusedwasi](https://github.com/natify-sh/fusedwasi), is pure Python too (it is the WASI host, for WASI 0.1 and for WASI 0.2 over one state).
+wasmtime or wasm3 (eight backends in all, see [Backends](#backends)). Plain Python, no C extension of its own; its one dependency, [fusedwasi](https://github.com/natify-sh/fusedwasi), is pure Python too (it is the WASI host, for WASI 0.1 and for WASI 0.2 over one state; for `wasi:http` it imports `h11`, pure Python, which comes with it).
+It has: `Module`, `Instance`, `Memory` (several per module), `Table`, `Global` and `Function`; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 (`Preview1`) and WASI 0.2 (`Preview2`: one component, or several fused by `meld` through `import_map=`; the network denied by default, `-S` flags, `wasi:http`; one `State` shared with `Preview1`); the commands `wasmhost run`, `self test` and `bench`; examples (CPython for WASI 0.1 and 0.2, git, coreutils, clang, a shell).
 
 [![license]][MIT]
 [![pypi]][PyPiUrl]
@@ -52,7 +53,7 @@ both in a bare JavaScript engine:
 (`python examples/cpython/run.py -c "print(1)"`). No processes, sockets or `dlopen` there, as WASI preview1 has none.
 `python examples/cpython/run2.py -c "print(1)"` runs the same CPython built for `wasm32-wasip2` (`python2.wasm`, 8 MB, committed; `build_wasip2.sh` is meant to rebuild it, written from the recipe that made it but not yet re-run) on
 `Preview2`, the one core module of the component that CPython's own build makes. Its exit code is only 0 or 1 (`sys.exit(3)` gives 1: the export `wasi:cli/run#run` returns ok or err). Not Pyodide.
-The network is open by default in `run2.py` (`-S inherit-network=n,allow-ip-name-lookup=n` closes it), so sockets work: run by hand on wasmtime, `pip install` of a pure-Python wheel from a folder and from a plain-http index of a local `http.server` (pip itself is not in the standard library zip: its wheel goes on `PYTHONPATH`, `--env HOME=...`). There is no `ssl` in this build (`_ssl` is not built), so no https. Not verified: https, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+The network is open by default in `run2.py` (`-S inherit-network=n,allow-ip-name-lookup=n` closes it), so sockets work: run by hand on wasmtime, `pip install` of a pure-Python wheel from a folder and from a plain-http index of a local `http.server` (pip itself is not in the standard library zip: its wheel goes on `PYTHONPATH`, `--env HOME=...`; `--env NAME=VALUE` sets a variable; a `-S` flag after the two defaults wins). There is no `ssl` in this build (`_ssl` is not built), so no https. Not verified: https, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 
 Both keep their downloads in `$WASMHOST_CACHE`, else `~/.cache/wasmhost`, else `./.cache` where there is no usable
 home directory (PythonIDE).
@@ -592,15 +593,16 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 ```
 
 - **Options.** The same as `Preview1` (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), `run(module)`, or `instantiate(module)` and `start(instance)`; `bind(instance, memories=("memory",), reallocs=("cabi_realloc",))` takes other export names.
-- **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=True` opens `wasi:http` (a switch of its own: it needs no `network=True`), `http_check(scheme, authority)` decides each request and `http_send(request) -> response` replaces the transport (without it fusedwasi's own client sends the request; run here against a local server, plain http only, no TLS); fusedwasi calls `wasi:http` unstable in its alpha, so its behaviour may change. A blocking socket call holds the backend (one call at a time).
+- **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=True` opens `wasi:http` (a switch of its own: it needs no `network=True`), `http_check(scheme, authority)` decides each request and `http_send(request) -> response` replaces the transport (without it fusedwasi's own client sends the request, on `h11`; run against a local `http.server` in `tests/test_wasi_http.py`, plain http only, the guest reads the status: CI green on `ab99e81`; `https` and the guest reading the body were not run); fusedwasi still calls `wasi:http` unstable in its alpha (0.1.0b3), so its behaviour may change. A blocking socket call holds the backend (one call at a time).
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
-- **Run one from the command line** (every command below was run on 2026-11-05 with the default backend, `wasmtime`; the first also on `node`; the modules are in `tests/data/wasi2/`):
+- **Run one from the command line** (every command below was run again on 2026-11-05, second pass, with the default backend, `wasmtime`; the first also on `node`; the modules are in `tests/data/wasi2/`):
 
   ```shell
   wasmhost run tests/data/wasi2/one.wasm                    # a core module of one component: prints "hello from wasip2", exit 0
   wasmhost run -S inherit-network,tcp=n tests/data/wasi2/_sock.wasm   # a TCP client, TCP refused again: "connect: Permission denied", exit 1 (`examples/wasi2.py sock --network` runs it against a server)
   # a module fused from two components by meld (here two_multi.wasm, two memories): the map says which memory each wasi:* import uses,
   # and this module exports no wasi:cli/run, so --invoke names the export
+  wasmhost run -S http tests/data/wasi2/http.wasm            # asks 127.0.0.1:47124 for GET /x?q=1 and writes the status if it gets one (the test server answers 200); with nothing listening it prints nothing and exits 0
   wasmhost run --import-map tests/data/wasi2/two_multi.map.json --invoke 'demo:m/app@0.1.0#run' tests/data/wasi2/two_multi.wasm   # prints three lines, then 42
   ```
 
@@ -707,7 +709,7 @@ which it is meant to be done. [SUPPORTS.md](SUPPORTS.md) says what each backend 
 - **Newer proposals**: no API for `WebAssembly.Tag` and `WebAssembly.Exception` (the self-test only reports which
   encodings of exceptions an engine takes), SIMD, `memory64`, multi-memory, GC types.
   Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are not added to wasmhost yet, whatever the engine can do: B-604.)
-- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` and, for a core module of one WASI 0.2 component, by `wasmhost.wasi.Preview2` (see [WASI](#wasi), sockets included, denied by default); not yet: a safe open on Windows
+- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` and, for a core module of one WASI 0.2 component or of several fused by `meld`, by `wasmhost.wasi.Preview2` (see [WASI](#wasi), sockets included, denied by default); not yet: a safe open on Windows
   (there is no `openat`: the check of a name and the open are two steps there; on POSIX a name is walked with `openat`, see [WASI](#wasi)). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
 
 ## Test

@@ -8,7 +8,7 @@ This page is the briefing for anyone (person or agent) who starts work on this r
 **wasmhost runs WebAssembly from Python with the shape of the JavaScript `WebAssembly` API, on whatever engine the platform has.** A *backend* is an engine behind one interface (`wasmhost/_backend.py`):
 `wasmtime`, `wasm3` (pywasm3), `node`, `bun`, `jsc` (JavaScriptCore through its C API), `gi-jsc` (WebKitGTK through PyGObject), `jscontext` (an Objective-C `JSContext`, as in Pythonista on iOS) and `pyodide`
 (wasmhost inside Pyodide). The same `Module`, `Instance`, `Memory`, `Table`, `Global` run on all of them; what an engine can not do is reported as `backend.supports(...) == False` and a `NotImplementedError`, never
-faked. WASI 0.1 is `wasmhost.wasi.preview1` and WASI 0.2 is `wasmhost.wasi.preview2`, hosts over [fusedwasi](https://github.com/natify-sh/fusedwasi) (pure Python, `>=0.1.0b2`, one `State` for both). The main target is **Pythonista on an iPhone** (Python 3.10, standard library only,
+faked. WASI 0.1 is `wasmhost.wasi.preview1` and WASI 0.2 is `wasmhost.wasi.preview2`, hosts over [fusedwasi](https://github.com/natify-sh/fusedwasi) (pure Python, `>=0.1.0b3`, one `State` for both; it needs `h11` for `wasi:http`). The main target is **Pythonista on an iPhone** (Python 3.10, standard library only,
 no JIT for wasm); the same code must work on CPython, PyPy, free-threaded CPython, Pyodide, Windows, macOS and Linux.
 
 ## What it is NOT (read this twice)
@@ -32,12 +32,10 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
 
 ## Where it is, and what is next
 
-* **Done:** the core API on eight backends; globals, memories (several per module) and tables, `Function`s; batches; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 and
-  `wasi_unstable` (`Preview1`) and WASI 0.2 (`Preview2`: one component, and several fused by `meld` through `import_map=`; the network denied by default) on fusedwasi 0.1.0b2 (S0001 steps A to C and S0004 built, CI green; `wasi:http` is tested through the `http_send` hook only and fusedwasi calls it unstable); the CLI (WASI 0.1 and 0.2; `-S` network flags and `-S http`, `--import-map`); examples (coreutils, wasm-clang, CPython for WASI 0.1 and for wasip2, a shell for Pythonista,
-  a WASI 0.2 one). The step-by-step history is in B-606 of BACKLOG.md.
+* **Done (2026-11-05):** eight backends; `Module`, `Instance`, `Memory` (several per module), `Table`, `Global`, `Function`; batches; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 and `wasi_unstable` (`Preview1`); WASI 0.2 (`Preview2`: one component, or several fused by `meld` through `import_map=`; the network denied by default; `wasi:http` incl. `http_check` and `http_send`; one `State` shared with `Preview1`) on fusedwasi 0.1.0b3; `wasmhost run` (WASI 0.1 and 0.2, `-S` flags, `--import-map`), `self test`, `bench`; examples (coreutils, wasm-clang, CPython for WASI 0.1 and for wasip2 with `pip`, a shell for Pythonista, `wasi2.py`, git). S0001 to S0004 are implemented; CI green on `8630d47` (step B), `07656d9` (step C), `b50b8aa` (CPython wasip2), `baef8b8` (S0004), `ab99e81` (fusedwasi b3 and `wasi:http` against a real local server). The step-by-step history is in B-606 of BACKLOG.md.
 * **What each backend supports now** is in [SUPPORTS.md](SUPPORTS.md), measured by CI (`tests/test_feature_probes.py`), not copied from any site.
-* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): the guide to components (B-608, now unblocked: its precondition, a real application on `Preview2`, is done); then GC types (B-604) and the features the engines have and the API lacks (B-601, B-602, memory64, B-605). A feature is taken when a real module needs it.
-* **Waiting for the owner:** the release with the Pythonista fix (a standard stream with no `.buffer`); the pull request of the branch `fusedwasi-p1` into `main` (78 commits ahead of `origin/main` on 2026-11-05).
+* **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): the guide to components (B-608, unblocked: a real application on `Preview2` is done); then GC types (B-604) and the features the engines have and the API lacks (B-601, B-602, memory64, B-605). A feature is taken when a real module needs it.
+* **Waiting for the owner:** the pull request of the branch `fusedwasi-p1` into `main` (87 commits ahead of `origin/main` on 2026-11-05); the release with the Pythonista fix (a standard stream with no `.buffer`); a run on the device; **a decision:** "the package depends only on `fusedwasi`" (CLAUDE.md) now has a second name behind it, `h11` (a dependency of fusedwasi 0.1.0b3, imported only by a module that imports `wasi:http`): keep the rule as it is, or say that fusedwasi's own pure-Python dependencies are allowed?
 
 ## Hard rules (short form; the full list is in CLAUDE.md)
 

@@ -9,7 +9,8 @@ arguments and streams of `p1`.
 
 The network is denied unless the host says so: `network=True` opens it, `socket_addr_check(ip, port, use)` decides each
 bind or connect (what `network` says is then the check's), `http=True` and `http_check` are the same for `wasi:http`
-(`http_send(request) -> response` replaces the transport; `wasi:http` is unstable in fusedwasi).
+(`http_send(request) -> response` replaces the transport; `wasi:http` is unstable in fusedwasi;
+run here against a local server, plain http only).
 """
 
 from __future__ import annotations
