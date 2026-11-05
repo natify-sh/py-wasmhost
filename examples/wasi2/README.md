@@ -9,4 +9,6 @@ To make a real one: build a component with `clang --target=wasm32-wasip2` (wasi-
 `wasm-tools component unbundle component.wasm` gives the core module that `Module(...)` takes.
 See `docs/specs/S0001-wasi-0.2-on-one-state.md`.
 
+Run: `python examples/wasi2.py hello` (this `hello.wasm`), `python examples/wasi2.py sock` (the network is denied) and `python examples/wasi2.py sock --network` (it connects to a local server); the command line takes the same module: `wasmhost run examples/wasi2/hello.wasm` (the other WASI 0.2 modules: `tests/data/wasi2/README.md`).
+
 The `sock` part of `examples/wasi2.py` uses `tests/data/wasi2/_sock.wasm` (401 KB, not copied here).

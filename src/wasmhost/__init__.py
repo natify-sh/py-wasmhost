@@ -1,8 +1,9 @@
 """wasmhost: run WebAssembly from CPython, PyPy and Pythonista, with the JavaScript WebAssembly API.
 
-`Module`, `Instance`, `Memory` and `Global` run on a backend: JavaScriptCore's `JSContext` (Pythonista on iOS),
-WebKitGTK's JavaScriptCore (Linux), Node, or a native runtime (wasmtime, wasm3). Plain Python, no dependencies,
-no C extension of its own.
+`Module`, `Instance`, `Memory`, `Table` and `Global` run on a backend: JavaScriptCore's `JSContext` (Pythonista on iOS),
+JavaScriptCore through its C API or WebKitGTK (`jsc`, `gi-jsc`), Node, Bun, a native runtime (wasmtime, wasm3), or the
+`WebAssembly` of Pyodide. `wasmhost.wasi` is the WASI host, 0.1 (`Preview1`) and 0.2 (`Preview2`), over fusedwasi,
+the one dependency. Plain Python, no C extension of its own.
 """
 
 from ._api import (

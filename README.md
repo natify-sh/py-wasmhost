@@ -3,7 +3,7 @@
 WebAssembly from **CPython, PyPy and Pythonista**, with the JavaScript WebAssembly API: modules, instances, memory,
 globals, and host functions (Python callables the module calls). It runs on whichever backend is available:
 JavaScriptCore's `JSContext` in Pythonista on iOS, JavaScriptCore, Node or Bun on a computer, or, when installed,
-wasmtime or wasm3. Plain Python, no C extension of its own; its one dependency, [fusedwasi](https://github.com/natify-sh/fusedwasi), is pure Python too (it is the WASI host).
+wasmtime or wasm3 (eight backends in all, see [Backends](#backends)). Plain Python, no C extension of its own; its one dependency, [fusedwasi](https://github.com/natify-sh/fusedwasi), is pure Python too (it is the WASI host, for WASI 0.1 and for WASI 0.2 over one state).
 
 [![license]][MIT]
 [![pypi]][PyPiUrl]
@@ -540,9 +540,8 @@ wasi = Preview1(
 code = wasi.run(Module(open("prog.wasm", "rb").read()))  # the exit code: what `proc_exit` was given, else 0
 ```
 
-- **Names.** `wasmhost.wasi` is a package with a module for each version of WASI: `preview1` is WASI 0.1, with the class `Preview1`,
-  which the package exports too (`from wasmhost.wasi import Preview1`). A class has the version in its name, so a later `Wasip2`
-  cannot be taken for it.
+- **Names.** `wasmhost.wasi` is a package with a module for each version of WASI: `preview1` is WASI 0.1, with the class `Preview1`, and `preview2` is WASI 0.2, with `Preview2`
+  (see [WASI 0.2](#wasi-02)); the package exports both classes (`from wasmhost.wasi import Preview1, Preview2`). A class has the version in its name, so one cannot be taken for the other.
 - **Folders.** `preopens` maps the name the program sees to a folder of the host; several can be given, and a name that leaves its
   folder (`..`, an absolute name, a link that points out) is refused with `ENOTCAPABLE`. On POSIX a name is walked from the folder one step at a time with `openat`, and a link met on the way is read and
   its target put in front of the rest of the name, so there is no gap between the check and the open (a name that passes through a folder that is not there
@@ -585,6 +584,19 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 - **Options.** The same as `Preview1` (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), `run(module)`, or `instantiate(module)` and `start(instance)`; `bind(instance, memories=("memory",), reallocs=("cabi_realloc",))` takes other export names.
 - **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=True` opens `wasi:http` (a switch of its own: it needs no `network=True`), `http_check(scheme, authority)` decides each request and `http_send(request) -> response` replaces the transport (a test runs a core module through it); fusedwasi calls `wasi:http` unstable in its alpha, so its behaviour may change. A blocking socket call holds the backend (one call at a time).
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
+- **Run one from the command line** (every command below was run on 2026-11-05 with the default backend, `wasmtime`; the first also on `node`; the modules are in `tests/data/wasi2/`):
+
+  ```shell
+  wasmhost run tests/data/wasi2/one.wasm                    # a core module of one component: prints "hello from wasip2", exit 0
+  wasmhost run -S inherit-network,tcp=n tests/data/wasi2/_sock.wasm   # a TCP client, TCP refused again: "connect: Permission denied", exit 1 (`examples/wasi2.py sock --network` runs it against a server)
+  # a module fused from two components by meld (here two_multi.wasm, two memories): the map says which memory each wasi:* import uses,
+  # and this module exports no wasi:cli/run, so --invoke names the export
+  wasmhost run --import-map tests/data/wasi2/two_multi.map.json --invoke 'demo:m/app@0.1.0#run' tests/data/wasi2/two_multi.wasm   # prints three lines, then 42
+  ```
+
+  In Python the same is `Preview2(import_map="two_multi.map.json").instantiate(Module(data))` and a call of the export (run: `inst.exports["demo:m/app@0.1.0#run"]()` gave 42).
+  `meld` and `wasm-tools` themselves were not run for this section (the files are the ones the tests carry; the commands that made them are in `docs/experiments/s0004_meld/`).
+  The exit code of `wasi:cli/run#run` is only ok or err, so a program that calls `exit(3)` gives 1 (shown with CPython, `examples/cpython/run2.py`); `wasi:cli/exit` gives its own code.
 - **Try it:** `python examples/wasi2.py hello` (a WASI 0.2 program says hello), `python examples/wasi2.py sock` (a TCP client: the network is denied) and `python examples/wasi2.py sock --network` (it connects to a local server); see `examples/wasi2/README.md`.
 - **Several components, fused by `meld` ([S0004](docs/specs/S0004-wasi-0.2-several-components.md)).** `meld fuse a.wasm b.wasm --memory multi --emit-import-map fused.map.json -o fused.wasm` (meld 0.65 or later; the map is schema `version: 2`, any other version is a `ValueError`) leaves a memory and a `cabi_realloc*` for each component. `Preview2(import_map="fused.map.json")` (a path, or the loaded JSON) sends each `wasi:*` import to the memory and `cabi_realloc` of its own component (the `$N` suffix of a name is stripped to find the function); the other imports (your interfaces, resource intrinsics) are yours: `{**wasi.imports(module), **mine}`. `wasmhost run --import-map fused.map.json --invoke NAME fused.wasm` does the same. A module with several `cabi_realloc*` exports and no map is a `ValueError` (the routing is not guessable); a `wasi:*` import that the map lacks or could not trace (`{"unknown": ...}`), or that the module lists twice, is a `LinkError` naming it. A module with ONE `cabi_realloc` is run as one component and a map is ignored: this includes `meld --memory shared --address-rebase`, where every component's calls reach the one `cabi_realloc`; that is safe only with an allocator that does not free another component's block, and meld itself calls the mode unsound (it refuses `memory.grow` under rebasing, so a component with wasi-libc's `malloc`, as CPython has, can not be fused that way). Several memories do not run on JavaScriptCore (`jsc`, `gi-jsc`, `jscontext`). Test modules and the commands that made them: `tests/data/wasi2/README.md`, `docs/experiments/s0004_meld/`.
 
@@ -612,7 +624,7 @@ there as `wasmhost self test` and `wasmhost bench`.
 command (`wasmhost.wasi.Preview1`) and its exit code is the command's; `--invoke FUNCTION` calls an exported function
 instead, the words after the module being its arguments (`wasmhost run --invoke add m.wasm 2 3` prints `5`; one result
 per line, a float as Rust prints it: `0.5`, `NaN`, `inf`). Options: `--backend`, `--dir HOST[::GUEST]` (repeatable),
-`--readonly`, `--env NAME[=VALUE]`, `--inherit-env` (all the variables of the process; `--env` wins), `--argv0 NAME` (the default is the module's file name), `--max-memory PAGES`, `--timeout SECONDS`, `--fuel UNITS`., `-S KEY[=VALUE][,KEY...]` (WASI 0.2 only). `--runtime NAME` is `--backend NAME`. A trap exits with 134, as in
+`--readonly`, `--env NAME[=VALUE]`, `--inherit-env` (all the variables of the process; `--env` wins), `--argv0 NAME` (the default is the module's file name), `--max-memory PAGES`, `--timeout SECONDS`, `--fuel UNITS`, and for WASI 0.2 only `-S`/`--wasi KEY[=VALUE][,KEY...]` and `--import-map PATH`. `--runtime NAME` is `--backend NAME`. A trap exits with 134, as in
 wasmtime; any other error with 1. Everything after the module belongs to the program. Only the WASI functions are provided: a module that imports others (`examples/coremark.py`'s `env.clock_ms`) does not link, as in `wasmtime`; programs like that are run from Python, as the examples do.
 
 A core module of WASI 0.2 (imports `wasi:*@0.2.N`, as `wasm-tools component unbundle` leaves it for one component) is told from one of 0.1 by its imports and runs on `Preview2`: it calls `wasi:cli/run#run`, and `--invoke` works as above. `--import-map PATH` is the map of `meld fuse --emit-import-map` for a module fused from several components. The network is denied; Wasmtime's `-S` flags open it: `-S inherit-network` (all addresses, TCP and UDP; the name lookup stays off), `-S allow-ip-name-lookup`, `-S tcp=n` and `-S udp=n` (refuse that kind again; `tcp` alone changes nothing), several in one `-S` with commas. `-S http` (or `http=n`) opens `wasi:http` outgoing requests on its own, with no socket flag; without it a request is refused (`HTTP-request-denied`). Three errors, each exit 1: a component (make a core module of it with `wasm-tools component unbundle` or `meld fuse`), a module of WASI 0.3 ("WASI 0.3 is not supported"), and `-S` or `--import-map` on a module that is not of WASI 0.2.
@@ -685,8 +697,8 @@ which it is meant to be done. [SUPPORTS.md](SUPPORTS.md) says what each backend 
 - **Newer proposals**: no API for `WebAssembly.Tag` and `WebAssembly.Exception` (the self-test only reports which
   encodings of exceptions an engine takes), SIMD, `memory64`, multi-memory, GC types.
   Whether a module that uses them runs is up to the engine: [SUPPORTS.md](SUPPORTS.md) has a probe of each feature on every backend, from CI. (GC types are not added to wasmhost yet, whatever the engine can do: B-604.)
-- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` and, for a core module of one WASI 0.2 component, by `wasmhost.wasi.Preview2` (see [WASI](#wasi), sockets included, denied by default); not yet: a safe open through
-  `openat` (the check of a name and the open are two steps now). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
+- **WASI** is provided for `wasi_snapshot_preview1` by `wasmhost.wasi.preview1` and, for a core module of one WASI 0.2 component, by `wasmhost.wasi.Preview2` (see [WASI](#wasi), sockets included, denied by default); not yet: a safe open on Windows
+  (there is no `openat`: the check of a name and the open are two steps there; on POSIX a name is walked with `openat`, see [WASI](#wasi)). `examples/coreutils.py` uses it and `examples/wasmclang.py` uses it for the calls that are not about files; `wasi_sh.py` keeps a host of its own (a file system that is not a folder, pipes).
 
 ## Test
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wasmhost"
 dynamic = ["version"]
-description = "WebAssembly for CPython, PyPy and Pythonista, run in JavaScriptCore or Node, with the JavaScript WebAssembly API"
+description = "WebAssembly for CPython, PyPy and Pythonista with the JavaScript WebAssembly API, on eight backends (wasmtime, wasm3, Node, Bun, Pyodide and JavaScriptCore in three forms) and with a WASI 0.1 and 0.2 host"
 readme = "README.md"
 authors = [{ name = "o-murphy", email = "thehelixpg@gmail.com" }]
 # 3.10 is what Pythonista runs.
@@ -32,7 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-# fusedwasi is the WASI 0.1 host (`fusedwasi.p1`, pure Python). 0.1.0b2 is a pre-release: the specifier names one, so pip and uv take it without --pre. 0.1.0b1 and later export `State`, `Guest` and `Exit` at the top level.
+# fusedwasi is the WASI host for 0.1 and 0.2 (pure Python, one `State`). 0.1.0b2 is a pre-release: the specifier names one, so pip and uv take it without --pre. 0.1.0b1 and later export `State`, `Guest` and `Exit` at the top level; 0.1.0b2 has `wasi:http` (unstable, fusedwasi says).
 dependencies = ["fusedwasi>=0.1.0b2"]
 
 [project.scripts]

@@ -77,6 +77,7 @@ Report:      files changed, commands run with output, docs updated, open questio
   lock; a host function called from inside a call may call into the same backend again (the lock is reentrant), but must not wait for another thread that wants the backend.
 * `Backend.features` lists the `supports(...)` strings; a new capability is a new string, with `NotImplementedError` where it is missing, and a step in `_selftest.py` that asks `supports` first.
 * The test modules for the self-test are built in `tests/wasm_builder.py`; `tests/test_selftest.py` checks that the bytes in `_selftest.py` match the builder.
+* WASI: `src/wasmhost/wasi/preview1.py` (WASI 0.1, `Preview1`), `preview2.py` (WASI 0.2, `Preview2`, one State shared with `Preview1`) and `_flavor.py` (tells a module of 0.1 from 0.2, and the `-S` flags); both over fusedwasi.
 * The WASI host follows the specification's witx files in `tests/data/wasi`; a difference from fusedwasi is fixed in fusedwasi, not here.
 * Platform specifics (Windows, macOS, PyPy, free-threaded) are checked in CI; the owner checks the device (give a wheel, `uv build --wheel`, and a script, not a request to "try it").
 
@@ -90,6 +91,7 @@ node tests/pyodide_run.mjs pytest                # inside Pyodide (from the fold
 python -m wasmhost self test                     # the self-test, as on a device
 python -m wasmhost bench                         # times the backends
 python -m wasmhost run module.wasm [-- ARGS]     # a WASI command, or a function with --invoke
+python -m wasmhost run -S inherit-network m.wasm        # a core module of WASI 0.2 (told by its imports); -S the network flags, --import-map map.json for a module fused from several components
 PATH=/usr/local/bin:$PATH uv tool run pre-commit run --all-files   # one run at a time: two in parallel corrupt each other; look at the result before committing
 uv run python tools/probe_features.py --collect LOGS --update SUPPORTS.md   # the tables of SUPPORTS.md from the logs of a CI run
 uv run python tools/probe_features.py --regenerate                          # the bytes of tests/feature_probes.py from their WAT

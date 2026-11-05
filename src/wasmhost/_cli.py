@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m wasmhost",
         description=(
             "Run WebAssembly from Python with the JavaScript WebAssembly API, "
-            "on JavaScriptCore, Node, Bun, wasmtime or wasm3."
+            "on JavaScriptCore, Node, Bun, Pyodide, wasmtime or wasm3."
         ),
     )
     parser.add_argument("-V", "--version", action="version", version=_VERSION)

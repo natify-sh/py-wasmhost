@@ -21,7 +21,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 ## Where it is (2026-11-05)
 
 - Runs core modules on `wasmtime`, `wasm3` (pywasm3), `node`, `bun`, `jsc`, `gi-jsc`, `jscontext` and `pyodide`; what an engine can not do is `supports(...) == False`, not faked.
-- **WASI 0.1**: `wasmhost.wasi.Preview1` over fusedwasi 0.1.0b2 (with `wasi_unstable`). **WASI 0.2, one component**: `wasmhost.wasi.Preview2` (S0001 step A, built): hello, environment, random, exit, and TCP sockets with the
+- **WASI 0.1**: `wasmhost.wasi.Preview1` over fusedwasi 0.1.0b2 (with `wasi_unstable`). **WASI 0.2, one component**: `wasmhost.wasi.Preview2` (S0001 step A, built; steps B and C and path 2 are the next three bullets): hello, environment, random, exit, and TCP sockets with the
   network denied by default; shown by the tests on every backend that takes host functions.
 - **Several memories** (S0003, built): every exported or imported memory of a module is its own `Memory`; `max_memory` holds all of them; the JavaScriptCore engines refuse such a module (their message is in the spec).
 - **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`).
@@ -35,14 +35,14 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 | Step | What it is | Waits for |
 |---|---|---|
-| **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | the application above (done); written from what runs |
+| **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing now: the application above is done (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
 | **B-303, B-503, B-701x** | batch read and write, an `openat` sandbox, Deno / a pure-Python interpreter / Android | nothing in principle |
 
 ## Waiting for the owner
 
-- the **pull request** of the branch `fusedwasi-p1` into `main` (a few dozen commits since 2026-10-23);
+- the **pull request** of the branch `fusedwasi-p1` into `main` (78 commits since 2026-10-23, counted 2026-11-05 against `origin/main`);
 - the **release** of wasmhost with the Pythonista fix (a standard stream with no `.buffer`) and now `Preview2`;
 - a **run on the device** (iPhone, Pythonista): the self-test, which has steps for several memories and for WASI 0.2.
 

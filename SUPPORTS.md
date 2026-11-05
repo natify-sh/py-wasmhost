@@ -103,7 +103,7 @@ From the CI run of `0cc1a79` (all jobs of Tests green; the tables of WebAssembly
 The last two rows of the tables above are measured: one small WASI 0.1 program (`tests/wasm_builder.wasi_hello`: arguments, a file made in a preopen, `fd_write`, `proc_exit`) run by `Preview1`, and one WASI 0.2 program
 (`tests/data/wasi2/one.wasm`: hello, environment, random bytes, exit) run by `Preview2`, on each backend. A
 backend that can not take host functions (`imports` is "no" in the `supports(...)` table) can not run a WASI program, since a program imports its functions. The rest is what the code and the specification
-files in `tests/data/wasi` say:
+files in `tests/data/wasi` say (the rows of WASI 0.2 name the commit of their own CI run, which can be later than the run the tables above come from):
 
 | WASI | wasmhost | Notes |
 |---|---|---|

@@ -41,7 +41,7 @@ python -m wasmhost run --dir examples/cpython::/py --env PYTHONHOME=/py --argv0 
 
 The same commit built for `wasm32-wasip2` with no patch to CPython, unbundled to one core module (115 imports, all `wasi:*@0.2.12`) and run by `Preview2` with
 the standard library of `lib/python315.zip`: `python examples/cpython/run2.py -c "print(1 + 1)"`. Run by hand on wasmtime, wasm3 and Node, and by
-`tests/test_cpython_wasip2_example.py` on wasmtime, wasm3, Node and Bun; CI runs the small program on wasmtime (Linux x64, pending). The exit code is only 0 or 1:
+`tests/test_cpython_wasip2_example.py` on wasmtime, wasm3, Node and Bun; CI runs the small program on wasmtime (Linux x64; green on `b50b8aa`, 2026-11-05). The exit code is only 0 or 1:
 CPython's `main` returns 3 for `sys.exit(3)` and the export `wasi:cli/run#run` turns any non-zero into err (the interface, not a defect). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 `build_wasip2.sh` was written from the recipe that made the committed module and **has not been run in this change**; its wasi-sdk checksum is known for Linux x86_64 only.
 
