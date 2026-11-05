@@ -28,7 +28,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 - Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added to wasmhost yet.
 
 - **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime and `http` (step C, built: tested through the `http_send` hook, not against a real server; fusedwasi calls `wasi:http` unstable).
-- **A real application on `Preview2`** (built 2026-11-05, CI pending): the official CPython built for `wasm32-wasip2` with wasi-sdk 34 and no patch, unbundled, run by `examples/cpython/run2.py` (`python2.wasm`, 8 MB, committed); wasmtime, wasm3, Node verified by hand, Bun by `tests/test_cpython_wasip2_example.py`. The exit code is only 0 or 1 (the interface of `wasi:cli/run`). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
+- **A real application on `Preview2`** (built 2026-11-05, CI green on `b50b8aa`): the official CPython built for `wasm32-wasip2` with wasi-sdk 34 and no patch, unbundled, run by `examples/cpython/run2.py` (`python2.wasm`, 8 MB, committed); wasmtime, wasm3, Node verified by hand, Bun by `tests/test_cpython_wasip2_example.py`. The exit code is only 0 or 1 (the interface of `wasi:cli/run`). Not verified: sockets and TLS, `pip`, stdin, another CPython commit, bun/jsc/jscontext/pyodide for the program itself.
 
 ## What is next, in this order
 
