@@ -33,7 +33,7 @@ CLI: wasmhost run | bench | self test      self-test: _selftest.py (runs on a de
 ## Where it is, and what is next
 
 * **Done:** the core API on eight backends; globals, memories (several per module) and tables, `Function`s; batches; limits for untrusted code (`max_memory`, `timeout`, `fuel`, `isolated`); async and threads; WASI 0.1 and
-  `wasi_unstable` (`Preview1`) and WASI 0.2 of one component (`Preview2`, with the network denied by default) on fusedwasi 0.1.0b1; the CLI (WASI 0.1 and 0.2; `-S` network flags, `http` waits for fusedwasi); examples (coreutils, wasm-clang, CPython for WASI, a shell for Pythonista,
+  `wasi_unstable` (`Preview1`) and WASI 0.2 of one component (`Preview2`, with the network denied by default) on fusedwasi 0.1.0b2; the CLI (WASI 0.1 and 0.2; `-S` network flags, `http` waits for fusedwasi); examples (coreutils, wasm-clang, CPython for WASI, a shell for Pythonista,
   a WASI 0.2 one).
 * **What each backend supports now** is in [SUPPORTS.md](SUPPORTS.md), measured by CI (`tests/test_feature_probes.py`), not copied from any site.
 * **Next**, per [ROADMAP.md](ROADMAP.md) and [BACKLOG.md](BACKLOG.md): a real application on `Preview2` (CPython for wasip2); several components through `meld`'s

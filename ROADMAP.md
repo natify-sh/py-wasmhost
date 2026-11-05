@@ -21,13 +21,13 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 ## Where it is (2026-11-05)
 
 - Runs core modules on `wasmtime`, `wasm3` (pywasm3), `node`, `bun`, `jsc`, `gi-jsc`, `jscontext` and `pyodide`; what an engine can not do is `supports(...) == False`, not faked.
-- **WASI 0.1**: `wasmhost.wasi.Preview1` over fusedwasi 0.1.0b1 (with `wasi_unstable`). **WASI 0.2, one component**: `wasmhost.wasi.Preview2` (S0001 step A, built): hello, environment, random, exit, and TCP sockets with the
+- **WASI 0.1**: `wasmhost.wasi.Preview1` over fusedwasi 0.1.0b2 (with `wasi_unstable`). **WASI 0.2, one component**: `wasmhost.wasi.Preview2` (S0001 step A, built): hello, environment, random, exit, and TCP sockets with the
   network denied by default; shown by the tests on every backend that takes host functions.
 - **Several memories** (S0003, built): every exported or imported memory of a module is its own `Memory`; `max_memory` holds all of them; the JavaScriptCore engines refuse such a module (their message is in the spec).
 - **SUPPORTS.md** is made from the logs of CI (`tests/test_feature_probes.py`, `tools/probe_features.py`).
 - Of the proposals of WebAssembly 2.0 and 3.0 most run inside a module on the engines that have them; the API does not yet carry `v128`, `externref` or a GC reference as a value, and GC types are not added to wasmhost yet.
 
-- **The command line for WASI 0.2** (S0001 step B, built, CI of `8630d47` being read): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime (`http` waits for fusedwasi).
+- **The command line for WASI 0.2** (S0001 step B, built, CI green on `8630d47`): `wasmhost run` tells a module of 0.2 from one of 0.1 by its imports and takes the `-S` flags `inherit-network`, `allow-ip-name-lookup`, `tcp`, `udp` as in Wasmtime (`http` waits for fusedwasi).
 
 ## What is next, in this order
 
