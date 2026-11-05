@@ -18,6 +18,13 @@ Measured on 2026-11-05 on this machine (Linux, wasmtime-py 49.0.0, Node 22.22.0,
 * CI (SUPPORTS.md, run of `fde7d0d`): a module with two memories runs on `wasmtime`, `node`, `bun`, `wasm3` and `pyodide`, and **not** on `jsc`, `gi-jsc`, `jscontext` (the engine refuses it).
 * The parser keeps the types of all memories in module order (`memory_types`, imports first, as the binary numbers them) and `limit_memory` (`max_memory`) rewrites every memory the module defines; neither has a test
   with more than one memory that this spec knows of.
+* **Fused modules export their memories (checked 2026-11-05 with `meld` 0.67.0 from PyPI, two toy components).** `meld fuse a.wasm b.wasm` (default `--memory auto`, which always resolves to `multi`) gave a core module
+  with two memories, exported as `memory` and `memory$1`, and the functions of the components. wasmhost ran it on wasmtime, Node, Bun and wasm3: `exports["memory$1"]` is a `Memory`; `read`, `write` and the length act on it alone.
+  (The attribute form `exports.memory$1` is not valid Python: the dictionary form is the way.) Two things limit the toy: its import `a:pkg/iface.get` was left unresolved by `meld` (it came out as an import of the fused
+  module, answered here by a host function), and it is two components with no WASI import.
+* **The names are not stable.** wasmext's own runs (`py-wasmext/docs/WASI_COMPONENTS.md`, `docs/experiments/wasi_checks/`) with `meld` 0.64 to 0.65 and `--exports world` show `memory$0` and `cabi_realloc$1`, and the table there says
+  the exports are `greet`, `cabi_post`, `memory$0`, `cabi_realloc$1` for the simple component but "both memories and both `cabi_realloc`" for the complex one (500 KB, two memories). So the name of the memory of component N, and
+  which memories are exported at all, depend on the version of `meld` and on its export mode. `meld fuse --memory shared --address-rebase` gives one memory but "is unsound if any input grows memory" (`meld docs memory-strategies`).
 * What fusedwasi needs (S0001): `Guest.memories`, a list with one memory for each component, indexed by `comp`, or a function that gives the memory (so that one that moves is followed); and the `cabi_realloc` of each component.
 
 ## The contract
@@ -48,11 +55,10 @@ answer is:
 `memory64`; shared memories; a different API for one memory; anything in fusedwasi; the host of WASI 0.2 itself (S0001).
 
 ## Open questions
-1. **Is anything new needed?** The memories are `Memory` objects by export name or import name. S0001 needs them as a list in module order. Option A: nothing new in the API; the host of WASI 0.2 builds the list from the
+1. **Is anything new needed?** *Leaning, 2026-11-05: Option A.* Every memory of a fused module is already a `Memory` by its export name on four backends, so the API needs nothing; what S0001 needs is a way to **name** the memories (an explicit list or a pattern), because the names vary with `meld`. B would not remove that problem, since module order is not the order of components either. Still to be confirmed by the owner. The memories are `Memory` objects by export name or import name. S0001 needs them as a list in module order. Option A: nothing new in the API; the host of WASI 0.2 builds the list from the
    names of the exports of the fused module (a convention to be read from a real fused module). Option B: an `Instance.memories` list in module order (a thing the JavaScript API does not have; the rule is to stay near it). A is
    smaller; B depends on no naming. Cost of B: the index of an export in the descriptors (`ExportDescriptor` would need an index the JS API lacks), or a list built from the module's memory section; a new name for tests and docs.
-2. **Are the memories of a fused module exported at all?** `meld` is not installed here (`wasm-tools` is), so no real fused module has been read. If they are not exported nor imported, S0001 can not run on any
-   engine through a JavaScript-style API and the plan for 0.2 has to change (a different engine interface). Read one first.
+2. **Are the memories of a fused module exported at all?** *Answered, 2026-11-05:* yes by default (`memory`, `memory$1`, ...), under names that change with the version and mode of `meld`; a real fused module with a WASI import (the complex one of wasmext) is still to be run through wasmhost, since only toy components were fused here.
 3. Should the JavaScriptCore family be given a way out (a module with one memory only), or is "not supported" the answer? Out of this spec's reach: the engine refuses the module.
 
 ## Changes
