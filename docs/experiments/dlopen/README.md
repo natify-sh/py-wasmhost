@@ -39,3 +39,25 @@ Nothing here is CPython yet.
   not numpy (libm, C++, threads, BLAS).
 - A real WASI 0.2 **component** keeps its memory private, so a side module can not be given it; only the unbundled core module run through `Preview2` can (inference, not tested).
 - Not verified: any real CPython extension, the relinked CPython, jsc/jscontext/pyodide, Windows/macOS, wasm3 at the C level, sandboxing of the loader.
+
+## CPython 3.15 with dlopen (`python3.wasm`) and Emscripten wheels (2026-11-05, measured by hand, wasmtime and node; not in CI)
+
+Files: `dl_loader_cpy.py` + `run_cpy_dl.py` (loader and driver on the public API), `foo.c` (a tiny extension),
+`t_emscripten_*.py` (guest scripts).
+
+Relink of the CPython objects (7 s, no rebuild): take the captured link line of `python.wasm` and apply
+`sed 's| -ldl | |; s| -o python.wasm | -Wl,--skip-wit-component -Wl,--export-table -Wl,--growable-table -Wl,--export=__stack_pointer -Wl,--export-dynamic -Wl,--allow-undefined -Wl,--export=memcmp -Wl,--export=strlen -Wl,--export=strcmp -Wl,--export=strrchr -Wl,--export=ntohs -Wl,--export=ntohl -o python3.wasm |'`.
+The result is a core module (not a component) that imports `env.dlopen/dlsym/dlerror` and exports its table, stack pointer and the whole C API.
+
+Results:
+* `foo.cpython-315-wasm32-wasi.so` (built with wasi-sdk): `import foo` works on wasmtime, node, bun.
+* `python3.wasm` with OpenSSL 3.5.0: `import ssl` works on wasmtime and node; bun dies (status -11) with the 36 MB module (not investigated).
+* **Emscripten wheels work as they are** (`msgpack` cp315 `pyemscripten_2026_5_wasm32` from PyPI): the `.so` has the same
+  `dylink.0` convention as ours and imports only the C API of Python plus a few libc functions; no `__syscall_*`, `emscripten_*` or `invoke_*`.
+  `msgpack._cmsgpack` packs and unpacks. The only changes: the file suffix `.cpython-315-wasm32-emscripten.so` has to be added to the extension
+  finder (`t_emscripten_msgpack.py`), and the main must export the libc functions the wheel imports (list them with `wasm-tools print`).
+* `bitarray` cp315 Emscripten wheel: import, `bitarray("1011")`, `extend`, `count` work; `tolist()` traps with `indirect call type mismatch`
+  in `cfunction_vectorcall_NOARGS`. Inferred, not yet confirmed: CPython has `Python/emscripten_trampoline.c` (`PY_CALL_TRAMPOLINE`) that tolerates
+  C functions called through a pointer of another signature; WASI has no such thing.
+* `contourpy` (C++, pybind11) imports about 300 C++ runtime symbols (libc++, libc++abi, `_Unwind_CallPersonality`, `__wasm_lpad_context`): the main would need libc++ and wasm exception handling. Not tried.
+* numpy/scipy/pillow have no Emscripten wheel on PyPI (pandas cp312, pydantic-core cp314 only); the Pyodide CDN is not reachable from the sandbox, so numpy was not tried.
