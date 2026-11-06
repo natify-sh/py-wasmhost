@@ -1,6 +1,6 @@
 # wasmhost roadmap
 
-Status: **updated 2026-11-05**. The detail of every item is in [BACKLOG.md](BACKLOG.md); this file is the direction and the order. What each backend supports today is in [SUPPORTS.md](SUPPORTS.md), measured by CI;
+Status: **updated 2026-11-06**. The detail of every item is in [BACKLOG.md](BACKLOG.md); this file is the direction and the order. What each backend supports today is in [SUPPORTS.md](SUPPORTS.md), measured by CI;
 the contract of every change is a spec in [docs/specs/](docs/specs/README.md). The sister library is [py-wasmext](https://github.com/natify-sh/py-wasmext); its plan does not bind this one.
 
 ## The principle
@@ -30,17 +30,22 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 
 | Step | What it is | Waits for |
 |---|---|---|
-| **Guide to components (B-608)** | `docs/COMPONENTS.md` and a README section: how to run a component, with examples, the tools (`wasm-tools`, `meld`) and the limits | nothing: unblocked (CPython for wasip2, CI green on `b50b8aa`); it is written from what runs |
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
+| **B-612** | Pyodide's `pyodide.asm.wasm` run by a Python host with no JavaScript (an experiment, not a goal; a PoC on wasmtime-py and Node, not in CI) | the owner's decision and a spec |
 | **B-611** | native extensions of CPython on WASI: wasmhost as the dynamic loader (an experiment shows the wasm level works on wasmtime, node, bun; not wasm3) | the owner's decision and a spec; CPython was not relinked |
 | **B-303, B-701x** | batch read and write, Deno / a pure-Python interpreter / Android | nothing in principle |
 
 ## Waiting for the owner
 
-- the **pull request** of the branch `fusedwasi-p1` into `main` (87 commits since 2026-10-23, counted 2026-11-05 against `origin/main`);
-- the **release** of wasmhost with the Pythonista fix (a standard stream with no `.buffer`) and now `Preview2`;
-- a **run on the device** (iPhone, Pythonista): the self-test, which has steps for several memories and for WASI 0.2;
+Done since 2026-11-05: the pull request of `fusedwasi-p1` is merged (#24), **wasmhost 0.2.0b1** is on PyPI (2026-11-06), the self-test ran on the iPhone (Pythonista and PythonIDE, backend `jsc`, 44/44 each: README, "Where it has been run"),
+the guide to components (B-608, `docs/COMPONENTS.md`) is written. What is still the owner's:
+
+- the **pull request** of the branch `docs-device-selftest-44` (device rows, the macOS `jsc` crash note, SUPPORTS.md from the CI of `e11ed0b`): pushed or local, not opened;
+- the two answers that S0002 (GC types) waits for: is the parser alone worth shipping, and what a GC reference in an export's signature should be for Python (refuse or an opaque handle);
+- whether B-611 and B-612 (experiments of what is possible) go further, and then a spec for either;
+- a decision on the **segmentation fault of the `jsc` backend on macOS** (BACKLOG): it failed twice in a row on `macos-latest / 3.10` in Tests run 314 and passed on the third attempt; the cause is not known;
+- the next release after `0.2.0b1`: the tag is the owner's.
 
 ## Related
 
