@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=84", "setuptools-scm>=8"]
+requires = ["setuptools>=84.2.1", "setuptools-scm>=10.3.4"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -39,7 +39,7 @@ dependencies = ["fusedwasi>=0.1.0b3"]
 wasmhost = "wasmhost._cli:main"
 
 [project.optional-dependencies]
-wasmtime = ["wasmtime>=49.0.0"]
+wasmtime = ["wasmtime>=50.0.1"]
 # The `gi-jsc` backend (WebKitGTK's JavaScriptCore through PyGObject, Linux only). PyGObject is built from source, so the
 # system needs its development files first (see "Backends" in the README): PyGObject 3.52+ wants girepository-2.0
 # (GLib 2.80+, Ubuntu 24.04 and later: `libgirepository-2.0-dev`), 3.50 and earlier girepository-1.0 (`libgirepository1.0-dev`;
@@ -62,10 +62,10 @@ version_file = "src/wasmhost/_version.py"
 dev = [
     "pre-commit>=4.6.2",
     "pyright>=1.1.414",
-    "pytest>=9.1.1",
+    "pytest>=9.2.0",
     "pytest-cov>=7.0.0",
-    "ruff>=0.16.8",
-    "wasmtime>=49.0.0",
+    "ruff>=0.17.3",
+    "wasmtime>=50.0.1",
     # The real Objective-C JSContext on a Mac, for tests/test_macos.py (Pythonista's objc_util exists only there)
     "rubicon-objc>=0.5.4; sys_platform == 'darwin'",
     # wasm3 backend; CPython 3.11+ only, and taken from git (see [tool.uv.sources])
