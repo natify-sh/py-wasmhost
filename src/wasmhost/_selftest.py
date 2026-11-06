@@ -31,6 +31,7 @@ from ._errors import CompileError, LinkError, OutOfFuel, Timeout, Trap
 from ._js import JSBackend
 from ._registry import AUTO_ORDER, BACKENDS
 from .wasi.preview1 import Preview1
+from .wasi.preview2 import Preview2
 
 __all__ = ("selftest",)
 
@@ -96,6 +97,16 @@ GROWS_MEMORY = bytes.fromhex(
 OWNS_MEMORY = bytes.fromhex(
     "0061736d01000000010a0260017f017f6000017f030302000105030100010718030467726f7700000473697a650001066d"
     "656d6f727902000a0d020600200040000b04003f000b"
+)
+
+# A module with three memories it defines: 0 (1 page, at most 4) exported as "a", 1 (2 pages) exported as "b",
+# 2 (1 page) not exported; grow<k>(pages) and size<k>() for each, load2(addr) reads a byte of memory 2; the data "AA",
+# "BB", "CC" go to memories 0, 1, 2.
+THREE_MEMORIES = bytes.fromhex(
+    "0061736d01000000010a0260017f017f6000017f03080700010001000100050803010104000200010741090567726f773000"
+    "000573697a653000010567726f773100020573697a653100030567726f773200040573697a65320005056c6f616432000601"
+    "610200016202010a2e070600200040000b04003f000b0600200040010b04003f010b0600200040020b04003f020b08002000"
+    "2d4002000b0b1903020041000b024141020141040b024242020241080b024343"
 )
 
 # A module with spin() that loops forever, quick() -> i32 that returns 7, and busy(n) -> i32 that counts to n.
@@ -168,6 +179,20 @@ WASI_HELLO_UNSTABLE = bytes.fromhex(  # the same program, importing from wasi_un
     "6d656d6f72790200065f737461727400050a4c014a004100410410001a410141104101411810011a4103410141c000410841"
     "01427f427f410041e40010021a41e40028020041104101411810011a41e40028020010031a410028020010040b0b30020041"
     "100b1c200000000c000000000000000000000068656c6c6f2c20776173690a0041c0000b086e6f74652e747874"
+)
+
+WASI2_HELLO = bytes.fromhex(  # tests/data/wasi2/one.wasm: a WASI 0.2 command (one component)
+    "0061736d010000000120066000017f60047f7f7f7f0060017f0060027e7f0060047f7f7f7f017f60000002df01051577617369"
+    "3a636c692f7374646f757440302e322e360a6765742d7374646f7574000015776173693a696f2f73747265616d7340302e322e"
+    "362e5b6d6574686f645d6f75747075742d73747265616d2e626c6f636b696e672d77726974652d616e642d666c75736800011a"
+    "776173693a636c692f656e7669726f6e6d656e7440302e322e360f6765742d656e7669726f6e6d656e74000218776173693a72"
+    "616e646f6d2f72616e646f6d40302e322e36106765742d72616e646f6d2d6279746573000313776173693a636c692f65786974"
+    "40302e322e360465786974000203040304000505030100010607017f014180200b073a04066d656d6f727902000c636162695f"
+    "7265616c6c6f63000516776173693a636c692f72756e40302e322e362372756e000605657869743100070a46031d01017f2300"
+    "200241016b6a410020026b712104200420036a240020040b1f0010004110411241c0001001420841e000100341f000100241c0"
+    "002d00000b0600410110040b0b18010041100b1268656c6c6f2066726f6d207761736970320a0043046e616d65011e05000667"
+    "65746f757401036277660203656e760303726e64040465786974021401050500016f01026f730202616c03016e040170070601"
+    "000362726b"
 )
 
 
@@ -254,10 +279,12 @@ def _selftest_backend(backend: Backend, out: Callable[[str], object]) -> _Report
     step("batch: an error keeps the earlier results", lambda: _batch_error(box["i"]))
     step("host functions (Python called from the module)", lambda: _host_functions(backend))
     step("WASI: a program of each snapshot, with arguments, stdout, a file and an exit code", lambda: _wasi(backend))
+    step("WASI 0.2: a core module of one component, its stdout and the result of run", lambda: _wasi2(backend))
     step("globals: made on their own, imported, shared", lambda: _globals_on_their_own(backend))
     step("memory: made on its own, imported, shared", lambda: _memory_on_its_own(backend))
     step("memory: the maximum of an imported memory stops the module's grow", lambda: _memory_ceiling(backend))
     step("memory: Instance(max_memory=) is a ceiling for a memory the module makes", lambda: _max_memory(backend))
+    step("memory: a module with several memories, each its own Memory", lambda: _several_memories(backend))
     step("timeout: Instance(timeout=) stops an endless loop, where the engine can", lambda: _timeout(backend))
     step("fuel: Instance(fuel=) stops an endless loop, where the engine can count", lambda: _fuel(backend))
     step("table: made on its own, imported, shared", lambda: _table_on_its_own(backend))
@@ -323,6 +350,17 @@ def _host_functions(backend: Backend) -> str:
     box["ex"] = Instance(Module(CALLBACKS, backend=backend), imports).exports
     _expect(box["ex"].call_plus(-1, 0), 3)  # the nested call goes through the module and back
     return "a call, nested calls, i64, several results, an exception, re-entry"
+
+
+def _wasi2(backend: Backend) -> str:
+    """A core module of one WASI 0.2 component through `wasmhost.wasi.preview2`: standard output through
+    `wasi:cli/stdout` and `wasi:io/streams`, and the `ok` that `wasi:cli/run#run` returns."""
+    if not backend.supports("imports"):
+        return "not supported on this backend: it takes no host functions"
+    out: list[bytes] = []
+    _expect(Preview2(env={"A": "1"}, stdout=out.append).run(Module(WASI2_HELLO, backend=backend)), 0)
+    _expect(b"".join(out), b"hello from wasip2\n")
+    return "stdout and the result of run"
 
 
 def _wasi(backend: Backend) -> str:
@@ -467,6 +505,25 @@ def _max_memory(backend: Backend) -> str:
     else:
         raise AssertionError("a module that starts over the ceiling was taken")
     return "grow past max_memory answers -1; type() says the maximum that holds; the module is unchanged"
+
+
+def _several_memories(backend: Backend) -> str:
+    try:
+        module = Module(THREE_MEMORIES, backend=backend)
+    except CompileError:
+        if backend.name in ("jsc", "gi-jsc", "jscontext"):
+            return "not available on this backend (the engine refuses a module with several memories), as documented"
+        raise
+    ex = Instance(module, max_memory=3).exports
+    a, b = ex["a"], ex["b"]
+    assert isinstance(a, Memory) and isinstance(b, Memory)
+    _expect((a.read(0, 2), b.read(4, 2), ex.load2(8)), (b"AA", b"BB", ord("C")))  # each segment in its own memory
+    a.write(100, b"first")
+    b.write(100, b"second")
+    _expect((a.read(100, 5), b.read(100, 6)), (b"first", b"second"))
+    _expect((ex.grow1(1), ex.size0(), ex.size1(), ex.size2()), (2, 1, 3, 1))  # grows one memory only
+    _expect((ex.grow0(3), ex.grow1(1), ex.grow2(3)), (-1, -1, -1))  # max_memory holds each of them, exported or not
+    return "each exported memory is a Memory of its own; data, grow and max_memory act on the right one"
 
 
 def _timeout(backend: Backend) -> str:

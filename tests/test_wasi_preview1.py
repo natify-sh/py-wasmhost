@@ -215,8 +215,10 @@ def test_stdout_is_not_readable_and_stdin_not_writable() -> None:
     buf = host.put(b"x")
     iovs, count = host.iov((buf, 1))
     n = host.alloc(4)
-    assert host("fd_read", 1, iovs, count, n) == Errno.notcapable
-    assert host("fd_write", 0, iovs, count, n) == Errno.notcapable
+    assert (
+        host("fd_read", 1, iovs, count, n) == Errno.badf
+    )  # the answer of the system to a read of a descriptor opened for writing
+    assert host("fd_write", 0, iovs, count, n) == Errno.badf
 
 
 def test_a_failing_sink_is_an_errno() -> None:
@@ -526,7 +528,10 @@ def test_mkdir_rmdir_unlink_rename(host: Host, root: Path) -> None:
     assert host.path("path_create_directory", "d") == Errno.exist
     (root / "d" / "f").write_text("x")
     assert host.path("path_remove_directory", "d") == Errno.notempty
-    assert host.path("path_unlink_file", "d") == Errno.isdir
+    # unlink of a directory: the answer of the system
+    assert host.path("path_unlink_file", "d") == (
+        Errno.perm if sys.platform == "darwin" else Errno.acces if sys.platform == "win32" else Errno.isdir
+    )
     assert host.path("path_unlink_file", "d/f") == 0
     assert host.path("path_remove_directory", "d") == 0
     assert host.path("path_unlink_file", "d") == Errno.noent
@@ -577,7 +582,8 @@ def test_symlink_readlink_and_link(host: Host, root: Path) -> None:
 
 def test_names_that_leave_the_directory_are_refused(host: Host, root: Path) -> None:
     (root.parent / "secret").write_text("S")
-    for name in ("../secret", "d/../../secret", "/etc/passwd", "a/../.."):
+    (root / "d").mkdir()  # a name is walked one step at a time, so what it passes through has to be there
+    for name in ("../secret", "d/../../secret", "/etc/passwd", "d/../.."):
         assert host.open(name)[0] == Errno.notcapable, name
     assert host.path("path_unlink_file", "../secret") == Errno.notcapable
     assert (root.parent / "secret").exists()
@@ -614,7 +620,9 @@ def test_a_directory_below_is_its_own_world(host: Host, root: Path) -> None:
 def test_bad_names(host: Host) -> None:
     assert host.open("")[0] == Errno.noent
     buf = host.put(b"\xff\xfe")
-    assert host("path_open", 3, FOLLOW, buf, 2, 0, ALL, ALL, 0, host.alloc(4)) == Errno.ilseq
+    # a name is bytes on POSIX, so it is simply not there; Windows wants text, and says the name is invalid
+    expected = (Errno.inval,) if sys.platform == "win32" else (Errno.noent,)
+    assert host("path_open", 3, FOLLOW, buf, 2, 0, ALL, ALL, 0, host.alloc(4)) in expected
     buf = host.put(b"a\0b")
     assert host("path_open", 3, FOLLOW, buf, 3, 0, ALL, ALL, 0, host.alloc(4)) == Errno.inval
     assert host.open("x", dirfd=1)[0] == Errno.notdir
@@ -662,6 +670,26 @@ def test_sched_yield_and_proc_raise(host: Host) -> None:
     host.ok("sched_yield")
     assert host("proc_raise", 15) == Errno.nosys
     assert host("proc_raise", 99) == Errno.inval
+    assert (
+        host("proc_raise", 0) == Errno.success
+    )  # fusedwasi answers "no signal" itself; wasmhost answered ENOSYS before
+    assert host("proc_raise", 30) == Errno.nosys
+    assert host("proc_raise", 31) == Errno.inval
+
+
+def test_instances_of_one_host_have_their_own_memory(root: Path) -> None:
+    """Each `imports()` is one more instance over the same world: a call writes into the memory of its own instance."""
+    wasi = Preview1(args=["a", "bc"])
+    first, second = Memory(), Memory()
+    wasi.memory = first
+    calls_first = wasi.imports()[preview1.SNAPSHOT]
+    calls_second = wasi.imports()[preview1.SNAPSHOT]
+    wasi.memory = second  # the last imports() is the one that `memory` means
+    assert calls_first["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", first.data, 16) == (2, 5)
+    assert struct.unpack_from("<II", second.data, 16) == (0, 0)  # the call of the first instance left the second alone
+    assert calls_second["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", second.data, 16) == (2, 5)
 
 
 def sub_clock(userdata: int, timeout: int, abstime: bool = False, clock: int = 1) -> bytes:
@@ -748,17 +776,17 @@ def test_calls_before_the_memory_is_bound_say_so() -> None:
 def test_close_closes_the_files(host: Host, root: Path) -> None:
     (root / "a").write_text("x")
     _, fd = host.open("a")
-    osfd = host.wasi._fds[fd].osfd  # pyright: ignore[reportPrivateUsage]
     host.wasi.close()
-    with pytest.raises(OSError):
-        os.fstat(osfd)
-    assert host("fd_close", fd) == Errno.badf
+    assert host("fd_close", fd) == Errno.badf  # every descriptor is gone
+    assert host("fd_prestat_get", 3, host.alloc(8)) == Errno.badf
 
 
 def test_context_manager_closes(root: Path) -> None:
-    with Preview1(preopens={"/": root}) as wasi:
-        assert wasi.imports()
-    assert not wasi._fds  # pyright: ignore[reportPrivateUsage]
+    host = Host(preopens={"/": root})
+    with host.wasi as wasi:
+        assert wasi is host.wasi
+        host.ok("fd_prestat_get", 3, host.alloc(8))
+    assert host("fd_prestat_get", 3, host.alloc(8)) == Errno.badf  # the directory is closed with the block
 
 
 # --- wasi_unstable, the first snapshot: the four things in which it differs
@@ -873,7 +901,7 @@ def test_the_package_exports_the_module_and_the_class() -> None:
 
     assert package.Preview1 is Preview1
     assert package.preview1.Preview1 is Preview1
-    assert set(package.__all__) == {"Preview1", "preview1"}
+    assert set(package.__all__) == {"Preview1", "Preview2", "preview1", "preview2"}
 
 
 # --- read-only preopens
@@ -988,3 +1016,33 @@ def test_the_first_snapshot_has_read_only_preopens_too(root: Path) -> None:
     old = Host(preopens={"/": root}, readonly=True, snapshot=preview1.UNSTABLE)
     assert old.open("a", Oflags.creat)[0] == Errno.notcapable
     assert old.path("path_create_directory", "d") == Errno.notcapable
+
+
+def test_a_memory_with_no_view_is_read_and_written_by_range() -> None:
+    """A call asks the memory object for the ranges it touches, not for the whole memory."""
+    seen: list[int] = []
+
+    class Counting(Memory):
+        def read(self, offset: int, length: int) -> bytes:
+            seen.append(length)
+            return super().read(offset, length)
+
+        def write(self, offset: int, data: bytes) -> None:
+            seen.append(len(data))
+            super().write(offset, data)
+
+    wasi = Preview1(args=["a", "bc"])
+    wasi.memory = memory = Counting()
+    assert wasi.imports()[preview1.SNAPSHOT]["args_sizes_get"](16, 20) == 0
+    assert struct.unpack_from("<II", memory.data, 16) == (2, 5)
+    assert seen and max(seen) <= 8
+
+
+def test_after_close_every_descriptor_is_gone(root: Path) -> None:
+    """The state stays closed: the standard streams answer EBADF too, and nothing is made again."""
+    host = Host(preopens={"/": root})
+    host.wasi.close()
+    host.wasi.close()  # a second close is nothing
+    for fd in (0, 1, 2, 3):
+        assert host("fd_close", fd) == Errno.badf
+    assert host("fd_prestat_get", 3, host.alloc(8)) == Errno.badf

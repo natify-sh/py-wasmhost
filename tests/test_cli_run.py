@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import errno
+import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -221,3 +223,57 @@ def test_a_real_program_with_variables_and_an_exit_code(
         == 0
     )
     assert capsys.readouterr().out == "inherited\n"
+
+
+def test_a_shell_whose_streams_have_no_buffer_runs_a_command(
+    monkeypatch: pytest.MonkeyPatch, session: str, tmp_path: Path
+) -> None:
+    """The shell of an iOS app (StaSh) has text streams without `.buffer`: `sys.stdin.buffer` raised
+    AttributeError, and a write of bytes to a text stream TypeError."""
+    if not wasmhost.get_backend(session).supports("imports"):
+        pytest.skip(f"the {session} backend can't take imports")
+    path = tmp_path / "hello.wasm"
+    path.write_bytes(wb.wasi_hello())
+    folder = tmp_path / "data"
+    folder.mkdir()
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", io.StringIO("input\n"))
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "stderr", io.StringIO())
+    assert not hasattr(sys.stdout, "buffer") and not hasattr(sys.stdin, "buffer")
+    code = _cli.main(["run", "--backend", session, "--dir", f"{folder}::/", str(path), "--", "one"])
+    assert code == 2  # proc_exit(argc): the name and one argument
+    assert out.getvalue() == "hello, wasi\n"
+
+
+def test_the_text_helpers_keep_characters_and_sizes() -> None:
+    text = io.StringIO()
+    write = _run._write(text)  # pyright: ignore[reportPrivateUsage]
+    euro = "€".encode()
+    write(euro[:1])
+    write(euro[1:] + b"!")  # a character cut in two writes is whole in the text
+    assert text.getvalue() == "€!"
+    source = _run._stdin(io.StringIO("ab€"))  # pyright: ignore[reportPrivateUsage]
+    assert [source.read(2), source.read(2), source.read(2), source.read(2), source.read(2)] == [
+        b"ab",
+        b"\xe2\x82",
+        b"\xac",
+        b"",
+        b"",
+    ]
+
+
+def test_a_text_input_that_only_has_readline_or_is_none() -> None:
+    """The console of Pythonista replaces stdin with an object of its own; an embedded interpreter may have None."""
+
+    class Lines:
+        def __init__(self, lines: list[str]) -> None:
+            self.lines = lines
+
+        def readline(self) -> str:
+            return self.lines.pop(0) if self.lines else ""
+
+    lines = _run._stdin(Lines(["ab\n", "c\n"]))  # pyright: ignore[reportPrivateUsage]
+    assert [lines.read(2), lines.read(9), lines.read(9), lines.read(9)] == [b"ab", b"\n", b"c\n", b""]
+    assert _run._stdin(None).read(5) == b""  # pyright: ignore[reportPrivateUsage]
+    assert _run._stdin(io.StringIO("x")).read(0) == b""  # pyright: ignore[reportPrivateUsage]

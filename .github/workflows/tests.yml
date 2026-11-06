@@ -80,11 +80,11 @@ jobs:
       # JSContext through rubicon-objc, which is as near to Pythonista's objc_util as CI gets.
       - name: "pytest --wasm-backend jsc (macOS, JavaScriptCore.framework)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' }}
-        run: uv run --locked pytest -v --wasm-backend jsc
+        run: uv run --locked pytest -v -rs --wasm-backend jsc
 
       - name: "pytest --wasm-backend jscontext (macOS, a real JSContext through rubicon-objc)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' && !startsWith(matrix.python-version, 'pypy') }}
-        run: uv run --locked pytest -v --wasm-backend jscontext
+        run: uv run --locked pytest -v -rs --wasm-backend jscontext
 
       - name: Examples
         run: |
@@ -100,12 +100,28 @@ jobs:
           CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
           CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
 
+      - name: "Example: CPython for WASI 0.2 (wasmtime, Linux x64)"
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        run: WASMHOST_BACKEND=wasmtime uv run --locked python examples/cpython/run2.py -c "$CPYTHON_PROGRAM" 2>/dev/null | grep -Fqx "$CPYTHON_EXPECT"
+        env:
+          CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
+          CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
+
       - name: "Example: CPython for WASI (jscontext, macOS, a real JSContext through rubicon-objc)"
         if: ${{ !cancelled() && matrix.os == 'macos-latest' && !startsWith(matrix.python-version, 'pypy') }}
         run: WASMHOST_BACKEND=jscontext uv run --locked python examples/cpython/run.py -c "$CPYTHON_PROGRAM" 2>/dev/null | grep -Fqx "$CPYTHON_EXPECT"
         env:
           CPYTHON_PROGRAM: "import sys, json, re, hashlib; print(sys.platform, json.dumps(re.findall(r'\\d+', 'a1b22')), hashlib.sha256(b'x').hexdigest()[:8], sum(range(10**6)))"
           CPYTHON_EXPECT: 'wasi ["1", "22"] 2d711642 499999500000'
+
+      # What each backend takes, for SUPPORTS.md (tools/probe_features.py reads these lines from the log). Last, so that the line is at the end of the log; a backend that can not start on this
+      # runner fails its own run and is ignored.
+      - name: "Probe the features of every backend (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        run: |
+          for b in wasmtime node bun wasm3 jsc jscontext; do
+            uv run --locked pytest -q -p no:cacheprovider tests/test_feature_probes.py --wasm-backend "$b" 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
+          done
 
   pyodide:
     name: Pyodide
@@ -117,6 +133,13 @@ jobs:
         with:
           node-version: 24
 
+      # fusedwasi (the WASI host) is pure Python: its source, at the tag of the release the lock holds, is put on the path inside Pyodide (FUSEDWASI_SRC).
+      - uses: actions/checkout@v7
+        with:
+          repository: natify-sh/fusedwasi
+          ref: v0.1.0b3
+          path: fusedwasi-src
+
       - name: Install Pyodide
         run: npm install --no-save --prefix "$RUNNER_TEMP/pyodide" pyodide@314.0.7
 
@@ -124,11 +147,22 @@ jobs:
       - name: Self-test on the pyodide backend
         working-directory: ${{ runner.temp }}/pyodide
         run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" selftest
+        env:
+          FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
 
       - name: pytest --wasm-backend pyodide
         if: ${{ !cancelled() }}
         working-directory: ${{ runner.temp }}/pyodide
-        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest
+        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest -vv -rs # -vv: pyodide_run.mjs starts with -q, so this is the names of the tests
+        env:
+          FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
+
+      - name: "Probe the features of the pyodide backend (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        working-directory: ${{ runner.temp }}/pyodide
+        run: node "$GITHUB_WORKSPACE/tests/pyodide_run.mjs" pytest -k test_what_the_backend_takes 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
+        env:
+          FUSEDWASI_SRC: ${{ github.workspace }}/fusedwasi-src/src
 
   jsc:
     name: WebKitGTK JavaScriptCore
@@ -154,26 +188,26 @@ jobs:
           uv pip install -e . pytest
 
       - name: pytest --wasm-backend gi-jsc (JIT on)
-        run: .venv/bin/python -m pytest -v --wasm-backend gi-jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend gi-jsc
         env:
           JSC_useJIT: "true"
 
       - name: pytest --wasm-backend gi-jsc (JIT off, as on iOS)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend gi-jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend gi-jsc
         env:
           JSC_useJIT: "false"
 
       # The same engine through its C API (ctypes), no PyGObject: it also takes host functions (imports).
       - name: pytest --wasm-backend jsc (JIT on)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend jsc
         env:
           JSC_useJIT: "true"
 
       - name: pytest --wasm-backend jsc (JIT off, as on iOS)
         if: ${{ !cancelled() }}
-        run: .venv/bin/python -m pytest -v --wasm-backend jsc
+        run: .venv/bin/python -m pytest -v -rs --wasm-backend jsc
         env:
           JSC_useJIT: "false"
 
@@ -181,3 +215,12 @@ jobs:
         run: |
           WASMHOST_BACKEND=gi-jsc .venv/bin/python examples/basic.py
           WASMHOST_BACKEND=jsc .venv/bin/python examples/imports.py
+
+      - name: "Probe the features of gi-jsc and jsc (SUPPORTS.md)"
+        if: ${{ !cancelled() }}
+        run: |
+          for b in gi-jsc jsc; do
+            .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_feature_probes.py --wasm-backend "$b" 2>&1 | grep -E "^WASMHOST-SUPPORTS" || true
+          done
+        env:
+          JSC_useJIT: "true"

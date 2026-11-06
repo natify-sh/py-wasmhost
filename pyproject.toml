@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools_scm>=8"]
+requires = ["setuptools>=84", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "wasmhost"
 dynamic = ["version"]
-description = "WebAssembly for CPython, PyPy and Pythonista, run in JavaScriptCore or Node, with the JavaScript WebAssembly API"
+description = "WebAssembly for CPython, PyPy and Pythonista with the JavaScript WebAssembly API, on eight backends (wasmtime, wasm3, Node, Bun, Pyodide and JavaScriptCore in three forms) and with a WASI 0.1 and 0.2 host"
 readme = "README.md"
 authors = [{ name = "o-murphy", email = "thehelixpg@gmail.com" }]
 # 3.10 is what Pythonista runs.
@@ -32,7 +32,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = []
+# fusedwasi is the WASI host for 0.1 and 0.2 (pure Python, one `State`). 0.1.0b3 is a pre-release: the specifier names one, so pip and uv take it without --pre. 0.1.0b1 and later export `State`, `Guest` and `Exit` at the top level; 0.1.0b2 has `wasi:http` (unstable, fusedwasi says); 0.1.0b3 does it on `h11` (pure Python, a dependency of fusedwasi that is imported only when a module imports `wasi:http`).
+dependencies = ["fusedwasi>=0.1.0b3"]
 
 [project.scripts]
 wasmhost = "wasmhost._cli:main"
@@ -90,6 +91,10 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Guest scripts of the dlopen experiment: they run inside CPython on wasm and patch the import machinery before importing.
+"docs/experiments/dlopen/t_emscripten_*.py" = ["E401", "E402", "E501", "F401", "F403", "F405", "F811", "I001"]
 
 [tool.coverage.run]
 source = ["wasmhost"]

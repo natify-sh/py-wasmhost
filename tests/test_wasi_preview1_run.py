@@ -85,3 +85,23 @@ def test_the_imports_link_against_the_module(session: str) -> None:
     need_imports()
     wasi = preview1.Preview1()
     Instance(Module(wb.wasi_hello(), backend=session), wasi.imports())
+
+
+def test_two_instances_over_one_host(session: str, tmp_path: Path) -> None:
+    """One world (arguments, files, standard output), one instance after the other and one beside the other, each with
+    its own memory and its own end of the call."""
+    need_imports()
+    out: list[bytes] = []
+    wasi = preview1.Preview1(args=["prog", "x"], preopens={"/": tmp_path}, stdout=out.append)
+    module = Module(wb.wasi_hello(), backend=session)
+    first = wasi.instantiate(module)
+    second = wasi.instantiate(module)  # made before the first one runs
+    assert wasi.start(second) == 2
+    assert wasi.start(first) == 2
+    assert b"".join(out) == TEXT * 2
+    assert (tmp_path / "note.txt").read_bytes() == TEXT
+    third = Instance(module, wasi.imports())  # the import object by hand: bind(instance) is for the last imports()
+    wasi.bind(third)
+    assert wasi.start(third) == 2
+    assert b"".join(out) == TEXT * 3
+    wasi.close()
