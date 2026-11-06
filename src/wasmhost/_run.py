@@ -22,6 +22,7 @@ from typing import Any
 from fusedwasi import Exit
 
 from . import BACKENDS, Instance, Module, Trap, WasmError, get_backend, set_backend
+from .wasi import for_module
 from .wasi._flavor import network_options, wasi_flavor
 from .wasi.preview1 import Preview1, WasiExit
 from .wasi.preview2 import Preview2
@@ -271,39 +272,30 @@ def run(host_args: Sequence[str], path: str, program_args: Sequence[str]) -> int
         for key, value in (("max_memory", args.max_memory), ("timeout", args.timeout), ("fuel", args.fuel))
         if value is not None
     }
-    flavor = wasi_flavor(wasm)
     try:
-        if flavor == "component":
-            raise ValueError(
-                "this is a component, not a core module: make a core module of it first "
-                "(`wasm-tools component unbundle`, or `meld fuse` for several components)"
-            )
-        if flavor == "core-0.3":
-            raise ValueError("WASI 0.3 is not supported")
         network = network_options(args.wasi)
-        if args.wasi and flavor != "core-0.2":
+        flavor = wasi_flavor(wasm)
+        if args.wasi and flavor != "core-0.2":  # `-S tcp=n` alone gives no option, so for_module would not see it
             raise ValueError("the network flags are for modules of WASI 0.2")
-        if args.import_map and flavor != "core-0.2":
-            raise ValueError("--import-map is for modules of WASI 0.2")
         if args.backend:
             set_backend(args.backend)
         else:
             get_backend()
-        module = Module(wasm)
-        common: dict[str, Any] = {
-            "args": [args.argv0 if args.argv0 is not None else os.path.basename(path), *program_args],
-            "env": _environment(args.env, args.inherit_env),
-            "preopens": _preopens(args.dir),
-            "stdin": _stdin(sys.stdin),
-            "stdout": _write(sys.stdout),
-            "stderr": _write(sys.stderr),
-            "readonly": args.readonly,
-        }
-        wasi: Preview1 | Preview2 = (
-            Preview2(**common, **network, import_map=args.import_map) if flavor == "core-0.2" else Preview1(**common)
+        wasi = for_module(
+            wasm,
+            args=[args.argv0 if args.argv0 is not None else os.path.basename(path), *program_args],
+            env=_environment(args.env, args.inherit_env),
+            preopens=_preopens(args.dir),
+            stdin=_stdin(sys.stdin),
+            stdout=_write(sys.stdout),
+            stderr=_write(sys.stderr),
+            readonly=args.readonly,
+            **network,
+            **({"import_map": args.import_map} if args.import_map else {}),
         )
+        module = Module(wasm)
         with wasi:
-            imports = wasi.imports(module) if isinstance(wasi, Preview2) else wasi.imports()
+            imports = wasi.imports(module)
             instance = Instance(module, imports, **options)
             try:
                 wasi.bind(instance)

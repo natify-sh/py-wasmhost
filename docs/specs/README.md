@@ -27,3 +27,4 @@ replaces it; the file names that one). An approved spec is changed in the spec f
 | [S0002](S0002-gc-types.md) | GC types: the parser, the probes and the tests per backend (B-604) | draft |
 | [S0003](S0003-several-memories.md) | several memories of one instance, the prerequisite of S0001 (B-603) | implemented 2026-11-05 (CI green on `be18649`) |
 | [S0004](S0004-wasi-0.2-several-components.md) | WASI 0.2 of several components through meld's import map (B-606, path 2 of S0001) | implemented 2026-11-05 (CI green on `baef8b8`) |
+| [S0005](S0005-wasi-for-module.md) | `wasi.for_module`: one call that picks `Preview1` or `Preview2` from the module (B-606) | approved 2026-11-06 |

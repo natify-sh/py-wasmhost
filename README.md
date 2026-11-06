@@ -594,6 +594,13 @@ shared = Preview2(state=Preview1(preopens={"/": "dir"}).state)  # the same files
 
 - **Options.** The same as `Preview1` (`args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`), `run(module)`, or `instantiate(module)` and `start(instance)`; `bind(instance, memories=("memory",), reallocs=("cabi_realloc",))` takes other export names.
 - **Network: denied by default.** `network=True` opens sockets; `socket_addr_check=lambda ip, port, use: ...` decides each bind or connect (a check that says no is the default's denial); `allow_ip_name_lookup` is fusedwasi's. `http=True` opens `wasi:http` (a switch of its own: it needs no `network=True`), `http_check(scheme, authority)` decides each request and `http_send(request) -> response` replaces the transport (without it fusedwasi's own client sends the request, on `h11`; run against a local `http.server` in `tests/test_wasi_http.py`, plain http only, the guest reads the status: CI green on `ab99e81`; `https` and the guest reading the body were not run); fusedwasi still calls `wasi:http` unstable in its alpha (0.1.0b3), so its behaviour may change. A blocking socket call holds the backend (one call at a time).
+- **One call for both.** `wasmhost.wasi.for_module(wasm, **options)` reads the imports of the bytes and gives a `Preview1` (WASI 0.1, or no WASI import) or a `Preview2` (WASI 0.2); a component, WASI 0.3, bytes that are no module, or an option only `Preview2` has (`network`, `http`, `import_map`...) for a 0.1 module is a `ValueError`. `wasmhost run` uses it. `host.imports(module)` works on both.
+
+  ```python
+  wasm = open("prog.wasm", "rb").read()
+  with for_module(wasm, args=["prog"], stdout=out.append) as wasi:
+      code = wasi.run(Module(wasm))
+  ```
 - **Shared state.** `Preview1` and `Preview2` have a `state`, and either takes `state=` (then no other option is given). Whoever made a State closes it.
 - **Run one from the command line** (every command below was run again on 2026-11-05, second pass, with the default backend, `wasmtime`; the first also on `node`; the modules are in `tests/data/wasi2/`):
 

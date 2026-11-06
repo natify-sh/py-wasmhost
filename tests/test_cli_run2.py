@@ -258,4 +258,4 @@ def test_import_map_on_a_wasi_01_module_is_an_error(
     path = tmp_path / "hello.wasm"
     path.write_bytes(wb.wasi_hello())
     assert run(session, "--import-map", str(DATA / "two_multi.map.json"), str(path)) == 1
-    assert "--import-map is for modules of WASI 0.2" in capsys.readouterr().err
+    assert "`import_map` is an option of WASI 0.2" in capsys.readouterr().err

@@ -30,6 +30,7 @@ from ._binary import FuncType, GlobalType, MemoryType, TableType, i32, i64
 from ._errors import CompileError, LinkError, OutOfFuel, Timeout, Trap
 from ._js import JSBackend
 from ._registry import AUTO_ORDER, BACKENDS
+from .wasi import for_module
 from .wasi.preview1 import Preview1
 from .wasi.preview2 import Preview2
 
@@ -280,6 +281,7 @@ def _selftest_backend(backend: Backend, out: Callable[[str], object]) -> _Report
     step("host functions (Python called from the module)", lambda: _host_functions(backend))
     step("WASI: a program of each snapshot, with arguments, stdout, a file and an exit code", lambda: _wasi(backend))
     step("WASI 0.2: a core module of one component, its stdout and the result of run", lambda: _wasi2(backend))
+    step("WASI: for_module picks the host of each version from the module", lambda: _wasi_for_module(backend))
     step("globals: made on their own, imported, shared", lambda: _globals_on_their_own(backend))
     step("memory: made on its own, imported, shared", lambda: _memory_on_its_own(backend))
     step("memory: the maximum of an imported memory stops the module's grow", lambda: _memory_ceiling(backend))
@@ -361,6 +363,19 @@ def _wasi2(backend: Backend) -> str:
     _expect(Preview2(env={"A": "1"}, stdout=out.append).run(Module(WASI2_HELLO, backend=backend)), 0)
     _expect(b"".join(out), b"hello from wasip2\n")
     return "stdout and the result of run"
+
+
+def _wasi_for_module(backend: Backend) -> str:
+    """`wasmhost.wasi.for_module` gives `Preview1` for a module of WASI 0.1 and `Preview2` for one of 0.2."""
+    if not backend.supports("imports"):
+        return "not supported on this backend: it takes no host functions"
+    for wasm, kind, code in ((WASI_HELLO, Preview1, 2), (WASI2_HELLO, Preview2, 0)):
+        out: list[bytes] = []
+        host = for_module(wasm, args=["selftest", "x"], stdout=out.append)
+        _expect(type(host), kind)
+        _expect(host.run(Module(wasm, backend=backend)), code)
+        host.close()
+    return "Preview1 for 0.1, Preview2 for 0.2"
 
 
 def _wasi(backend: Backend) -> str:
