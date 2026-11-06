@@ -829,6 +829,15 @@ unused functions in the shared `_JS` script. What it does change: "CPython on ma
   makes many such calls has more chances to meet it than the older tests; nothing was measured. The code that is in question is in `src/` (`_capi.py`), not in
   the example. The git tests are not skipped on `jsc`, so that the flake stays visible.
 
+- **2026-11-06, `main` (`e11ed0b`, the merge of #26): the same segmentation fault on CPython 3.10, macOS, backend `jsc`, in two attempts in a row.** Tests run 314 (the push of #26), the job `macos-latest / 3.10`, the step
+  `pytest --wasm-backend jsc (macOS, JavaScriptCore.framework)`: attempt 1 and attempt 2 both died with `Fatal Python error: Segmentation fault`; attempt 3 (a re-run of the failed jobs) was green, and the other 13 jobs
+  were green on attempt 1. The stack (read from the logs of both attempts) is the old one, from a host function that reads memory: `preview1.py` `path_open` -> fusedwasi `_path_at` -> `_read_bytes` -> `_load` ->
+  `_remote_read` -> `Memory.read` -> `JSBackend.memory_read` -> `_run` -> `CApi.evaluate` -> `CApi._text` (`JSValueToStringCopy`). The test: after `test_git_example.py::test_a_local_repository_from_a_subdirectory[jsc]` passed, the
+  next one, `test_merge_rebase_reset_and_tag_are_gits_own[jsc]`, was running (both attempts, the same place). In attempt 1 the log also shows a thread in `socketserver.serve_forever` (the local server of a test).
+  What differs from the entries above: two failures in a row on the same commit and at the same place (the rule above, "a second failure is real", is met), and the host path is now fusedwasi's (`path_open`), not `path_filestat_get`.
+  What is not known: whether the commits after the green run 298 (`08b9dfe`: #25 with wasmtime 50.0.1, pytest 9.2 and others, and #26) play a part; the job was green on run 298 and on earlier runs. Nothing was re-run or reproduced here.
+  The git tests are still not skipped on `jsc`, so that the flake stays visible.
+
 ## General definition of done
 
 Code, tests in `tests/` on all backends that can do it (the rest are skipped with a reason), an **updated
