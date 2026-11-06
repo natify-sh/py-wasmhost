@@ -287,31 +287,10 @@ main()
 ```
 
 ## Not implemented
-- Only 28 of the module's 268 function imports are answered; the rest are stubs. Files are a temporary folder (no sandbox, `os.listdir("/")` is empty: no `getdents64`); no network, no `dlopen` in this script (see `pyodide_numpy.py` below for a version with it).
+- Only 28 of the module's 268 function imports are answered; the rest are stubs. Files are a temporary folder (no sandbox, `os.listdir("/")` is empty: no `getdents64`); no network, no `dlopen` in this script (see NUMPY.md for a version with it).
 - The bridge to JavaScript (`js`, `pyodide.ffi`, `micropip`; about 130 imports) cannot exist without JS.
 - Possible with more work, not tried: more file calls, sockets, `dlopen` (a loader of this kind ran emscripten wheels in a different CPython build).
 - Only the exception paths of these programs were exercised after the conversion; the conversion is Binaryen's. Linux only, REPL tried through a pipe.
 
-## numpy: a binary wheel, loaded at run time (`pyodide_numpy.py`)
-The same idea with a real Emscripten wheel. `pyodide_numpy.py` (one file, about 700 lines, `uv run` installs `wasmtime`) runs **numpy 2.4.3** in `pyodide.asm.wasm` of **Pyodide 315.0.0a2** (Python 3.15.0rc1), still with no JavaScript.
-By hand on Linux with wasmtime-py 50.0.1, not in CI.
-
-```sh
-npm install -g binaryen          # `wasm-opt`, as above
-uv run pyodide_numpy.py          # prints the numpy version and a matrix product
-uv run pyodide_numpy.py -c "import numpy as np; print(np.linalg.inv(np.array([[2., 1], [1, 3]])))"
-```
-First run: about 30 s (downloads `pyodide-315.0.0a2.tar.bz2`, 35 MB, from the GitHub release, checks its sha256, takes `pyodide.asm.wasm`, `python_stdlib.zip` and the numpy wheel out of it, and converts the exceptions of the main module and of the two numpy modules that throw C++ exceptions). Cached in `~/.cache/pyodide-wasmtime-numpy`; later runs about 10 s.
-
-**What is new against `pyodide_repl.py`: the dynamic loading.** In a browser `dlopen` is JavaScript (`_dlopen_js`, `_dlsym_js`). Here these two imports are Python functions that do what the Emscripten loader does for a side module:
-1. read the `dylink.0` section of the `.so` (memory and table size and alignment);
-2. take the memory for its data from `calloc` of the main module, and grow the table of the main module for it;
-3. instantiate it with the **memory, the table, the stack pointer and the C++ exception tag of the main module**, and `__memory_base` / `__table_base`;
-4. fill the `GOT.mem` / `GOT.func` globals from the exports of the main module (and, after instantiation, from its own);
-5. run `__wasm_apply_data_relocs` and `__wasm_call_ctors`; `_dlsym_js` returns a table slot (functions) or `base + value` (data).
-
-`import numpy` loads 3 to 13 such modules (`[loader] loaded ...` on stderr, `unresolved 0` for each). It needs also `getdents64`, `readlinkat`, `faccessat`, `fcntl` and `ffi_closure_alloc_js` (`import ctypes`), which the REPL does not have.
-The loader is **not** a library: nothing here is added to wasmhost (it has no API for tags and for importing the memory and table of another module; see BACKLOG B-612).
-The longer record, the failures on the way and the same numpy on our own CPython: `docs/experiments/pyodide_nojs/README.md`, `docs/experiments/dlopen/README.md`.
-
-**Not done:** the bridge to JavaScript (`pyodide.ffi`, `micropip`, `loadPackage`; wheels are unpacked by the script), more than numpy (other wheels were not tried), Windows/macOS, a proof that Binaryen's conversion of the exceptions is correct.
+## numpy
+A version with numpy and a `dlopen` written in Python: [NUMPY.md](NUMPY.md) (script: `pyodide_numpy.py`).
