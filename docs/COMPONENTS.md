@@ -27,7 +27,9 @@ In Python:
 from wasmhost import Module
 from wasmhost.wasi import Preview2
 
-code = Preview2(env={"A": "1"}, stdout=out.append).run(Module(open("prog.wasm", "rb").read()))   # 0 ok, 1 err, or the code of wasi:cli/exit
+code = Preview2(env={"A": "1"}, stdout=out.append).run(
+    Module(open("prog.wasm", "rb").read())
+)  # 0 ok, 1 err, or the code of wasi:cli/exit
 ```
 Options (the same as `Preview1`): `args`, `env`, `preopens`, `stdin`, `stdout`, `stderr`, `readonly`; on the command line `--dir`, `--env`, `-S`. The exit code of `wasi:cli/run#run` is only ok or err: a program that calls `exit(3)` gives 1.
 
