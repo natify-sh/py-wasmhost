@@ -140,7 +140,7 @@ def markdown(records: list[dict]) -> str:
     )
     if any("wasi2" in r for r in records):  # the logs of a run from before `Preview2` have no such field
         out.append(
-            "| `wasi:*@0.2` of one component (`Preview2`): hello, environment, random, exit | "
+            "| `wasi:*@0.2` (`Preview2`): the probe program, one small component (hello, environment, random, exit) | "
             + " | ".join(cell(_by_platform(runs[b], lambda r: r.get("wasi2", "no"))) for b in backends)
             + " |"
         )
