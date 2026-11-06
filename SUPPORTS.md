@@ -24,7 +24,7 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 "other" is a proposal that is in none of them.
 
 <!-- probe:begin -->
-| WebAssembly feature | Edition | `wasmtime` (wasmtime-py 49.0.0) | `node` (node 22.23.4, node 24.22.1) | `bun` (bun 1.4.4) | `wasm3` (pywasm3 0.9.1.dev75+g4c1334e03) | `jsc` | `gi-jsc` | `jscontext` | `pyodide` (pyodide 314.0.7) |
+| WebAssembly feature | Edition | `wasmtime` (wasmtime-py 50.0.1) | `node` (node 22.23.4, node 24.22.1, node 24.22.2) | `bun` (bun 1.4.4) | `wasm3` (pywasm3 0.9.1.dev75+g4c1334e03) | `jsc` | `gi-jsc` | `jscontext` | `pyodide` (pyodide 314.0.7) |
 |---|---|---|---|---|---|---|---|---|---|
 | mvp | 1.0 | yes | yes | yes | yes | yes | yes | yes | yes |
 | mutable-globals | 1.0 | yes | yes | yes | yes | yes | yes | yes | yes |
@@ -68,14 +68,14 @@ memory, fixed-width SIMD), 3.0 the 2025 one (64-bit memories, multiple memories,
 | `wasi_snapshot_preview1` (`Preview1`): arguments, a file in a preopen, `fd_write`, `proc_exit` | yes | yes | yes | yes | yes | no | yes | yes |
 | `wasi:*@0.2` (`Preview2`): the probe program, one small component (hello, environment, random, exit) | yes | yes | yes | yes | yes | no | yes | yes |
 
-Measured by CI: 43 different lines of the log, from these combinations:
-- `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
-- `node`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
-- `bun`: Darwin, Linux; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
-- `wasm3`: Darwin, Linux, Windows; CPython 3.15.1, CPython 3.15.2
-- `jsc`: Darwin, Linux, Linux (JIT off); CPython 3.10.22, CPython 3.12.3, CPython 3.15.1, CPython 3.15.2, PyPy 3.11.17
+Measured by CI: 38 different lines of the log, from these combinations:
+- `wasmtime`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `node`: Darwin, Linux, Windows; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `bun`: Darwin, Linux; CPython 3.10.22, CPython 3.15.2, PyPy 3.11.17
+- `wasm3`: Darwin, Linux, Windows; CPython 3.15.2
+- `jsc`: Darwin, Linux, Linux (JIT off); CPython 3.10.22, CPython 3.12.3, CPython 3.15.2, PyPy 3.11.17
 - `gi-jsc`: Linux, Linux (JIT off); CPython 3.12.3
-- `jscontext`: Darwin; CPython 3.10.22, CPython 3.15.1, CPython 3.15.2
+- `jscontext`: Darwin; CPython 3.10.22, CPython 3.15.2
 - `pyodide`: Emscripten; CPython 3.14.2
 <!-- probe:end -->
 
@@ -83,7 +83,7 @@ Measured by CI: 43 different lines of the log, from these combinations:
 
 The notes below are written by hand from the tables and are checked again whenever the tables are written.
 
-From the CI run of `08b9dfe` (Tests run 298, all 14 jobs green, 2026-11-05; the tables did not change from the run of `0cc1a79`, only the list of Node versions: 24.22.2 was not on the runners this time). What the tables say:
+From the CI run of `e11ed0b` (Tests run 314, the push of #26, 2026-11-06: 14 jobs, each green in its last attempt; the job `macos-latest / 3.10` failed twice with a segmentation fault of the `jsc` backend, see BACKLOG, and passed on the third attempt); wasmtime-py is now 50.0.1. The tables did not change from the run of `08b9dfe`. What the tables say:
 
 * **WebAssembly 1.0 and 2.0 run on every backend**, with one exception: `simd`. `wasm3` has no SIMD, and the JavaScriptCore of WebKitGTK **without its JIT** (the CI job that stands in for an iPhone, where wasm gets no JIT) refuses
   it too; with the JIT it runs (`jsc` on macOS and Linux, `jscontext` on macOS).
@@ -96,7 +96,7 @@ From the CI run of `08b9dfe` (Tests run 298, all 14 jobs green, 2026-11-05; the 
   on a Mac is a real JSContext with the JIT on.
 * **Windows, PyPy and the Python versions** (3.10, 3.15, 3.15t, PyPy 3.11) gave the same answers as Linux for `wasmtime`, `node` and `wasm3`; the list under the tables names every combination that was run.
 
-**`supports(...)`** (run of `08b9dfe`; the same on every OS): host functions (`imports`, and so WASI) are there on every backend but `gi-jsc`, which is why the WASI program ran on seven of the eight; `jscontext` has `imports` once its engine has started. `wasm3` has none of `import.memory`, `import.table`, `table.funcs`, `table.length` and `memory.grow` from Python: pywasm3 can not take a memory or a table from the host (a module that imports a memory loads, but with a memory of its own), has no access to the elements of a table and no growing of a memory from the host (a module's own `memory.grow` works, and `memory.view` sees it). `import.global` is "not added to wasmhost": pywasm3 does link a global **by value** (`link_global`, also a mutable one; checked by hand on 2026-11-05, not in CI), but the object is not shared with the host or with another module, which is what `import.global` means here. **Checked by hand on 2026-11-05 (Node 22.22.0, Bun 1.4.2, pywasm3 as above; not in CI):** a wasm loop `(loop br 0)` is stopped by Node's `vm` timeout (in 331 ms for 300 ms) and is not stopped by Bun's (the process had to be killed), so `timeout` on Bun is an engine limit; `fuel` and `isolated` have nothing in the JavaScript API; `memory.view` on Node and Bun is out of reach because the engine runs in another process; a call into wasm3 from a second Python thread returned its result (one trial, not a stress run). Not run here: the JavaScriptCore engines and Pyodide. What else pywasm3 has and wasmhost does not use: `memory_limit`/`memory_used`, `table_limit`/`table_used`, tags and exceptions, `save_snapshot`/`load_snapshot` and `request_suspend`/`resume`. `table.signatures` is `wasmtime` alone (Node has `.type()` of a function only with `--experimental-wasm-type-reflection`: not added to wasmhost; Bun has none); `timeout` is `wasmtime`, `node` and `wasm3`; `fuel` and `isolated` are `wasmtime` and `wasm3`; `memory.view` is `wasmtime` and `wasm3`; and `threads` (calls from several Python threads) is `wasmtime`, `node` and `bun`.
+**`supports(...)`** (run of `e11ed0b`; the same on every OS): host functions (`imports`, and so WASI) are there on every backend but `gi-jsc`, which is why the WASI program ran on seven of the eight; `jscontext` has `imports` once its engine has started. `wasm3` has none of `import.memory`, `import.table`, `table.funcs`, `table.length` and `memory.grow` from Python: pywasm3 can not take a memory or a table from the host (a module that imports a memory loads, but with a memory of its own), has no access to the elements of a table and no growing of a memory from the host (a module's own `memory.grow` works, and `memory.view` sees it). `import.global` is "not added to wasmhost": pywasm3 does link a global **by value** (`link_global`, also a mutable one; checked by hand on 2026-11-05, not in CI), but the object is not shared with the host or with another module, which is what `import.global` means here. **Checked by hand on 2026-11-05 (Node 22.22.0, Bun 1.4.2, pywasm3 as above; not in CI):** a wasm loop `(loop br 0)` is stopped by Node's `vm` timeout (in 331 ms for 300 ms) and is not stopped by Bun's (the process had to be killed), so `timeout` on Bun is an engine limit; `fuel` and `isolated` have nothing in the JavaScript API; `memory.view` on Node and Bun is out of reach because the engine runs in another process; a call into wasm3 from a second Python thread returned its result (one trial, not a stress run). Not run here: the JavaScriptCore engines and Pyodide. What else pywasm3 has and wasmhost does not use: `memory_limit`/`memory_used`, `table_limit`/`table_used`, tags and exceptions, `save_snapshot`/`load_snapshot` and `request_suspend`/`resume`. `table.signatures` is `wasmtime` alone (Node has `.type()` of a function only with `--experimental-wasm-type-reflection`: not added to wasmhost; Bun has none); `timeout` is `wasmtime`, `node` and `wasm3`; `fuel` and `isolated` are `wasmtime` and `wasm3`; `memory.view` is `wasmtime` and `wasm3`; and `threads` (calls from several Python threads) is `wasmtime`, `node` and `bun`.
 
 ## WASI
 
