@@ -901,7 +901,7 @@ def test_the_package_exports_the_module_and_the_class() -> None:
 
     assert package.Preview1 is Preview1
     assert package.preview1.Preview1 is Preview1
-    assert set(package.__all__) == {"Preview1", "Preview2", "preview1", "preview2"}
+    assert set(package.__all__) == {"Preview1", "Preview2", "for_module", "preview1", "preview2"}
 
 
 # --- read-only preopens

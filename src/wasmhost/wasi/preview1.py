@@ -428,10 +428,11 @@ class Preview1:
 
     # --- running
 
-    def imports(self) -> dict[str, dict[str, Callable[..., int | None]]]:
+    def imports(self, module: Module | None = None) -> dict[str, dict[str, Callable[..., int | None]]]:
         """The import object: every function of both snapshots, `wasi_snapshot_preview1` and `wasi_unstable`, to give to
         `Instance(module, wasi.imports())`; the engine links the ones the module imports. Each call makes the calls of
-        one more instance (with a memory of its own to `bind`) over the same files, arguments and streams."""
+        one more instance (with a memory of its own to `bind`) over the same files, arguments and streams.
+        `module` is ignored: it is there so that `imports(module)` works on a `Preview1` and on a `Preview2`."""
         if self._fresh:
             self._fresh = False
         else:
