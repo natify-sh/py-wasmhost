@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["wasmtime>=50"]
+# dependencies = ["wasmtime>=50", "fusedwasi>=0.1.0b3"]
 # ///
 """PoC: numpy (an Emscripten wheel, loaded with a dlopen written in Python) in Pyodide's pyodide.asm.wasm on wasmtime, no JavaScript.
 
@@ -28,6 +28,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, cast
 
+from fusedwasi import Exit, Guest, State, signatures
 from wasmtime import (
     Caller,
     Config,
@@ -111,8 +112,38 @@ class _Memory:
     def write(self, addr: int, data: bytes | bytearray | memoryview) -> None:
         self.memory.write(CUR[-1], bytes(data), addr)
 
+    def __len__(self) -> int:
+        return self.memory.data_len(CUR[-1])
+
 
 MEM = _Memory()
+
+
+# WASI 0.1 that does not touch a file descriptor of the host is fusedwasi's: the standard streams, the environment, the clocks, the random bytes, the exit.
+# (The descriptors of the files are the host's own: the Emscripten syscalls below open them.)
+WASI = State(env=[(k, v) for k, _, v in (e.decode().partition("=") for e in ENV)], stdout=None, stderr=None)
+GUEST = Guest(WASI, MEM)
+
+
+def wasi(name):
+    row = signatures.find_import("wasi_snapshot_preview1", name)
+    assert row is not None
+    fn = row.python_function()
+    params = row.params
+
+    def f(*args):
+        try:
+            return fn(
+                GUEST,
+                *[
+                    a & (0xFFFFFFFF if p.type == "i32" else 0xFFFFFFFFFFFFFFFF)
+                    for a, p in zip(args, params, strict=True)
+                ],
+            )
+        except Exit as e:
+            raise SystemExit(e.code) from None
+
+    return f
 
 
 def u32(a):
@@ -125,46 +156,6 @@ def w32(a, v):
 
 def w64(a, v):
     MEM.write(a, struct.pack("<Q", v & 0xFFFFFFFFFFFFFFFF))
-
-
-def fd_write(fd, iov, n, out):
-    total = 0
-    for k in range(n):
-        p, ln = u32(iov + 8 * k), u32(iov + 8 * k + 4)
-        data = bytes(MEM.read(p, ln))
-        total += ln
-        (sys.stdout if fd == 1 else sys.stderr).write(data.decode("utf-8", "replace"))
-    w32(out, total)
-    return 0
-
-
-def environ_sizes_get(pc, ps):
-    w32(pc, len(ENV))
-    w32(ps, sum(len(e) + 1 for e in ENV))
-    return 0
-
-
-def environ_get(pp, pb):
-    for e in ENV:
-        w32(pp, pb)
-        MEM.write(pb, e + b"\0")
-        pb += len(e) + 1
-        pp += 4
-    return 0
-
-
-def clock_time_get(cid, prec, out):
-    w64(out, time.time_ns() if cid == 0 else time.monotonic_ns())
-    return 0
-
-
-def random_get(buf, n):
-    MEM.write(buf, os.urandom(n))
-    return 0
-
-
-def proc_exit(code):
-    raise SystemExit(code)
 
 
 def get_progname(buf, n):
@@ -612,12 +603,12 @@ def ffi_closure_free_js(closure):
 
 
 IMPL = dict(
-    fd_write=fd_write,
-    environ_sizes_get=environ_sizes_get,
-    environ_get=environ_get,
-    clock_time_get=clock_time_get,
-    random_get=random_get,
-    proc_exit=proc_exit,
+    fd_write=wasi("fd_write"),
+    environ_sizes_get=wasi("environ_sizes_get"),
+    environ_get=wasi("environ_get"),
+    clock_time_get=wasi("clock_time_get"),
+    random_get=wasi("random_get"),
+    proc_exit=wasi("proc_exit"),
     _emscripten_get_progname=get_progname,
     _PyEM_TrampolineCall_JS=trampoline,
     __syscall_getcwd=sc_getcwd,
