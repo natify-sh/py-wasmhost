@@ -16,8 +16,8 @@ import atexit
 import errno as E
 import hashlib
 import os
+import posixpath
 import shutil
-import stat as ST
 import struct
 import subprocess
 import sys
@@ -28,7 +28,20 @@ import zipfile
 from pathlib import Path
 from typing import Any, cast
 
-from fusedwasi import Exit, Guest, State, signatures
+from fusedwasi import Exit, Guest, State, p1, signatures
+from fusedwasi.p1 import (
+    FD_APPEND,
+    FD_NONBLOCK,
+    FT_BLOCK,
+    FT_CHAR,
+    FT_DIR,
+    FT_REGULAR,
+    FT_SYMLINK,
+    LOOKUP_FOLLOW,
+    R_ALL,
+    R_FD_WRITE,
+    wasi_p1,
+)
 from wasmtime import (
     Caller,
     Config,
@@ -90,10 +103,10 @@ ENV = [
 ROOT = tempfile.mkdtemp(prefix="pyodide_numpy_")  # what the guest sees as `/` (not a sandbox)
 os.makedirs(ROOT + f"/lib/python{PYVER}")
 shutil.copy(os.path.join(PYODIDE_DIR, "python_stdlib.zip"), ROOT + f"/lib/python{PYVER.replace('.', '')}.zip")
-os.symlink(SITE_DIR, ROOT + f"/lib/python{PYVER}/site-packages")
 atexit.register(shutil.rmtree, ROOT, True)
 cwd = ["/"]
-fdpath: dict[int, str] = {}
+# what the guest sees as `/`, and the site-packages (outside ROOT: a preopen does not follow a link out of itself); fusedwasi numbers the preopens from 3
+PREOPENS = [("/", ROOT, 3), (f"/lib/python{PYVER}/site-packages", SITE_DIR, 4)]
 dpos: dict[int, int] = {}
 calls: dict[str, int] = {}
 CUR: list[
@@ -121,7 +134,12 @@ MEM = _Memory()
 
 # WASI 0.1 that does not touch a file descriptor of the host is fusedwasi's: the standard streams, the environment, the clocks, the random bytes, the exit.
 # (The descriptors of the files are the host's own: the Emscripten syscalls below open them.)
-WASI = State(env=[(k, v) for k, _, v in (e.decode().partition("=") for e in ENV)], stdout=None, stderr=None)
+WASI = State(
+    preopens=[(root, name) for name, root, _ in PREOPENS],
+    env=[(k, v) for k, _, v in (e.decode().partition("=") for e in ENV)],
+    stdout=None,
+    stderr=None,
+)
 GUEST = Guest(WASI, MEM)
 
 
@@ -163,14 +181,6 @@ def get_progname(buf, n):
     return 0
 
 
-def host(path_ptr_or_str, dirfd=-100):
-    p = path_ptr_or_str if isinstance(path_ptr_or_str, str) else cstr(path_ptr_or_str)
-    if not p.startswith("/"):
-        base = cwd[0] if dirfd == -100 else fdpath[dirfd]
-        p = os.path.normpath(base + "/" + p)
-    return p, ROOT + os.path.normpath(p)
-
-
 def cstr(a):
     out = b""
     while True:
@@ -184,18 +194,65 @@ def neg(e):
     return -e.errno if isinstance(e, OSError) and e.errno else -E.EIO
 
 
-def wstat(buf, st):
-    mem = MEM
+def host(path):
+    """The path of the guest (absolute, or relative to its cwd) and the file of the host that it is: what the loader reads."""
+    g = posixpath.normpath(path if path.startswith("/") else cwd[0] + "/" + path)
+    for name, root, _fd in sorted(PREOPENS, key=lambda x: -len(x[0])):
+        if g == name or g.startswith(name.rstrip("/") + "/"):
+            return g, os.path.join(root, g[len(name) :].lstrip("/"))
+    return g, ROOT + g
+
+
+# ---- the files: Emscripten's syscalls over the descriptors of WASI 0.1 that fusedwasi keeps (open is path_open, the rest is fd_* of fusedwasi)
+AT_FDCWD = -100
+_LINUX_ERRNO = {
+    getattr(p1, n): getattr(E, "E" + n[2:]) for n in dir(p1) if n.startswith("E_") and hasattr(E, "E" + n[2:])
+}
+_scratch: list[int] = []
+
+
+def scratch():
+    """4 KiB in the memory of the guest for what fusedwasi reads (a path) and writes (a result)."""
+    if not _scratch:
+        _scratch.append(EX["malloc"](CUR[-1], 4096))
+    return _scratch[0]
+
+
+def err(n):
+    """The errno of WASI that a function of fusedwasi gave, as the negative errno of Linux (0 is 0)."""
+    return -_LINUX_ERRNO.get(n, E.EIO) if n else 0
+
+
+def where(dirfd, path):
+    """A path of the guest and the descriptor it is relative to, as fusedwasi wants them: (fd, bytes). A path from the root or from the cwd is cut at its preopen."""
+    path = path if isinstance(path, str) else cstr(path)
+    if dirfd != AT_FDCWD and not path.startswith("/"):
+        return dirfd, path.encode()
+    g = posixpath.normpath(path if path.startswith("/") else cwd[0] + "/" + path)
+    for name, _root, fd in sorted(PREOPENS, key=lambda x: -len(x[0])):
+        if g == name or g.startswith(name.rstrip("/") + "/"):
+            return fd, (g[len(name) :].lstrip("/") or ".").encode()
+    return PREOPENS[0][2], g.lstrip("/").encode() or b"."
+
+
+def put_path(path):
+    a = scratch()
+    MEM.write(a, path)
+    return a
+
+
+def wstat(buf, fs):
+    """The `struct stat` of Emscripten (96 bytes) from the 64 bytes of a WASI `filestat` (it has no mode, uid or gid: the mode comes from the type)."""
+    dev, ino, ftype, nlink, size, atim, mtim, ctim = struct.unpack("<QQB7xQQQQQ", fs)
+    mode = {FT_DIR: 0o40755, FT_SYMLINK: 0o120777, FT_CHAR: 0o20666}.get(ftype, 0o100644)
     b = bytearray(96)
-    struct.pack_into(
-        "<IIIIII", b, 0, st.st_dev & 0xFFFFFFFF, st.st_mode, st.st_nlink, st.st_uid, st.st_gid, st.st_rdev & 0xFFFFFFFF
-    )
-    struct.pack_into("<q", b, 24, st.st_size)
-    struct.pack_into("<II", b, 32, 4096, st.st_blocks)
-    for off, t in ((40, st.st_atime_ns), (56, st.st_mtime_ns), (72, st.st_ctime_ns)):
+    struct.pack_into("<IIIIII", b, 0, dev & 0xFFFFFFFF, mode, nlink, 0, 0, 0)
+    struct.pack_into("<q", b, 24, size)
+    struct.pack_into("<II", b, 32, 4096, (size + 511) // 512)
+    for off, t in ((40, atim), (56, mtim), (72, ctim)):
         struct.pack_into("<qI", b, off, t // 10**9, t % 10**9)
-    struct.pack_into("<q", b, 88, st.st_ino)
-    mem.write(buf, bytes(b))
+    struct.pack_into("<q", b, 88, ino)
+    MEM.write(buf, bytes(b))
     return 0
 
 
@@ -208,141 +265,97 @@ def sc_getcwd(buf, size):
 
 
 def sc_openat(dirfd, path, flags, va):
-    g, h = host(path, dirfd)
-    try:
-        fd = os.open(h, flags & ~0o2000000, 0o644)
-    except OSError as e:
-        return neg(e)
-    fdpath[fd] = g
-    dpos.pop(fd, None)  # a new open of the same descriptor number starts the listing again
-    return fd
+    fd, rel = where(dirfd, path)
+    rights = R_ALL & ~(R_FD_WRITE if flags & 3 == 0 else 0)
+    oflags = (
+        (1 if flags & 0o100 else 0)
+        | (4 if flags & 0o200 else 0)
+        | (8 if flags & 0o1000 else 0)
+        | (2 if flags & 0o200000 else 0)
+    )
+    fdflags = (FD_APPEND if flags & 0o2000 else 0) | (FD_NONBLOCK if flags & 0o4000 else 0)
+    out = scratch() + 4000
+    dirflags = 0 if flags & 0o400000 else LOOKUP_FOLLOW
+    n = wasi_p1.path_open(GUEST, fd, dirflags, put_path(rel), len(rel), oflags, rights, rights, fdflags, out)
+    if n:
+        return err(n)
+    dpos.pop(u32(out), None)  # a new open of the same descriptor number starts the listing again
+    return u32(out)
+
+
+def stat_to(buf, dirfd, path, nofollow=False):
+    """`struct stat` at `buf` of the path (or, with no path, of the descriptor); the negative errno on a failure."""
+    a = scratch() + 4096 - 128
+    if path is None:
+        n = wasi_p1.fd_filestat_get(GUEST, dirfd, a)
+    else:
+        fd, rel = where(dirfd, path)
+        n = wasi_p1.path_filestat_get(GUEST, fd, 0 if nofollow else LOOKUP_FOLLOW, put_path(rel), len(rel), a)
+    return err(n) if n else wstat(buf, bytes(MEM.read(a, 64)))
 
 
 def sc_stat(path, buf):
-    try:
-        return wstat(buf, os.stat(host(path)[1]))
-    except OSError as e:
-        return neg(e)
+    return stat_to(buf, AT_FDCWD, path)
 
 
 def sc_lstat(path, buf):
-    try:
-        return wstat(buf, os.lstat(host(path)[1]))
-    except OSError as e:
-        return neg(e)
+    return stat_to(buf, AT_FDCWD, path, True)
 
 
 def sc_fstat(fd, buf):
-    try:
-        return wstat(buf, os.fstat(fd))
-    except OSError as e:
-        return neg(e)
+    return stat_to(buf, fd, None)
 
 
 def sc_newfstatat(dirfd, path, buf, flags):
-    try:
-        h = host(path, dirfd)[1] if (isinstance(path, str) or cstr(path)) else None
-        if h is None:
-            return sc_fstat(dirfd, buf)
-        return wstat(buf, os.lstat(h) if flags & 0x100 else os.stat(h))
-    except OSError as e:
-        return neg(e)
+    if not cstr(path):  # AT_EMPTY_PATH: the descriptor itself
+        return sc_fstat(dirfd, buf)
+    return stat_to(buf, dirfd, path, bool(flags & 0x100))
 
 
 def sc_readlinkat(dirfd, path, buf, n):
-    try:
-        t = os.readlink(host(path, dirfd)[1]).encode()[:n]
-    except OSError as e:
-        return neg(e)
-    MEM.write(buf, t)
-    return len(t)
+    fd, rel = where(dirfd, path)
+    used = scratch() + 4000
+    r = wasi_p1.path_readlink(GUEST, fd, put_path(rel), len(rel), buf, n, used)
+    return err(r) if r else u32(used)
 
 
 def sc_faccessat(dirfd, path, mode, flags):
-    try:
-        os.stat(host(path, dirfd)[1])
-        return 0
-    except OSError as e:
-        return neg(e)
+    return stat_to(scratch() + 2048, dirfd, path)
+
+
+_DT = {FT_DIR: 4, FT_SYMLINK: 10, FT_REGULAR: 8, FT_CHAR: 2, FT_BLOCK: 6}
 
 
 def sc_getdents64(fd, dirp, count):
-    g = fdpath[fd]
-    names = [".", ".."] + sorted(os.listdir(ROOT + g))
-    pos = dpos.setdefault(fd, 0)
-    out = b""
-    while pos < len(names):
-        n = names[pos].encode()
-        rec = struct.pack("<QqHB", 1, pos + 1, 0, 0) + n + b"\0"
-        rec += b"\0" * (-len(rec) % 8)
-        rec = rec[:16] + b""
-        st = (
-            os.lstat(ROOT + os.path.normpath(g + "/" + names[pos]))
-            if names[pos] not in (".", "..")
-            else os.stat(ROOT + g)
-        )
-        typ = 4 if ST.S_ISDIR(st.st_mode) else 10 if ST.S_ISLNK(st.st_mode) else 8
-        body = n + b"\0"
-        ln = (19 + len(body) + 7) // 8 * 8
-        rec = struct.pack("<QqHB", st.st_ino, pos + 1, ln, typ) + body
-        rec += b"\0" * (ln - len(rec))
-        if len(out) + ln > count:
+    """`fd_readdir` of fusedwasi (entries of 24 bytes + name, a cookie each) as the `dirent64` of Linux."""
+    cookie = dpos.get(fd, 0)
+    used = scratch() + 4000
+    buf = EX["malloc"](CUR[-1], count)
+    try:
+        r = wasi_p1.fd_readdir(GUEST, fd, buf, count, cookie, used)
+        if r:
+            return err(r)
+        data = bytes(MEM.read(buf, u32(used)))
+    finally:
+        EX["free"](CUR[-1], buf)
+    out, at = b"", 0
+    while at + 24 <= len(data):
+        nxt, ino, ln, ft = struct.unpack_from("<QQIB", data, at)
+        if at + 24 + ln > len(data):  # the last entry was cut short
             break
-        out += rec
-        pos += 1
-    dpos[fd] = pos
+        name = data[at + 24 : at + 24 + ln] + b"\0"
+        size = (19 + len(name) + 7) // 8 * 8
+        if len(out) + size > count:
+            break
+        rec = struct.pack("<QqHB", ino, nxt, size, _DT.get(ft, 0)) + name
+        out += rec + b"\0" * (size - len(rec))
+        cookie = nxt
+        at += 24 + ln
+    if not out and data:
+        return -E.EINVAL
+    dpos[fd] = cookie
     MEM.write(dirp, out)
     return len(out)
-
-
-def fd_read(fd, iov, n, out):
-    tot = 0
-    for k in range(n):
-        p, ln = u32(iov + 8 * k), u32(iov + 8 * k + 4)
-        d = os.read(fd, ln) if fd else b""
-        MEM.write(p, d)
-        tot += len(d)
-        if len(d) < ln:
-            break
-    w32(out, tot)
-    return 0
-
-
-def fd_pread(fd, iov, n, off, out):
-    tot = 0
-    for k in range(n):
-        p, ln = u32(iov + 8 * k), u32(iov + 8 * k + 4)
-        d = os.pread(fd, ln, off + tot)
-        MEM.write(p, d)
-        tot += len(d)
-        if len(d) < ln:
-            break
-    w32(out, tot)
-    return 0
-
-
-def fd_seek(fd, off, whence, out):
-    try:
-        r = os.lseek(fd, off, whence)
-    except OSError as e:
-        return e.errno
-    w64(out, r)
-    return 0
-
-
-def fd_close(fd):
-    try:
-        os.close(fd) if fd > 2 else None
-    except OSError as e:
-        return e.errno
-    return 0
-
-
-def fd_fdstat_get(fd, buf):
-    st = os.fstat(fd) if fd > 2 else None
-    ft = 2 if fd <= 2 or st is None else 3 if ST.S_ISDIR(st.st_mode) else 4 if ST.S_ISREG(st.st_mode) else 0
-    MEM.write(buf, struct.pack("<BxHxxxxQQ", ft, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF))
-    return 0
 
 
 def sc_ioctl(fd, op, va):
@@ -622,11 +635,11 @@ IMPL = dict(
     __syscall_getdents64=sc_getdents64,
     __syscall_ioctl=sc_ioctl,
     __syscall_fcntl64=sc_fcntl,
-    fd_read=fd_read,
-    fd_pread=fd_pread,
-    fd_seek=fd_seek,
-    fd_close=fd_close,
-    fd_fdstat_get=fd_fdstat_get,
+    fd_read=wasi("fd_read"),
+    fd_pread=wasi("fd_pread"),
+    fd_seek=wasi("fd_seek"),
+    fd_close=wasi("fd_close"),
+    fd_fdstat_get=wasi("fd_fdstat_get"),
     emscripten_date_now=lambda: time.time() * 1000,
     emscripten_get_now=lambda: time.monotonic() * 1000,
     emscripten_get_heap_max=lambda: 0x7FFF0000,
