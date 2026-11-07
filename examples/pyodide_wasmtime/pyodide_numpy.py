@@ -26,8 +26,10 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
+from typing import Any, cast
 
 from wasmtime import (
+    Caller,
     Config,
     Engine,
     Func,
@@ -35,6 +37,7 @@ from wasmtime import (
     Global,
     GlobalType,
     Linker,
+    Memory,
     Module,
     Store,
     Val,
@@ -60,9 +63,9 @@ def prepare():  # download once, unpack, convert the exceptions once
 
     with tarfile.open(fileobj=io.BytesIO(data)) as tar:
         wheel = next(m for m in tar.getmembers() if m.name.startswith("pyodide/numpy-") and m.name.endswith(".whl"))
-        (CACHE / "pyodide.asm.wasm").write_bytes(tar.extractfile("pyodide/pyodide.asm.wasm").read())
-        (CACHE / "python_stdlib.zip").write_bytes(tar.extractfile("pyodide/python_stdlib.zip").read())
-        zipfile.ZipFile(io.BytesIO(tar.extractfile(wheel).read())).extractall(CACHE / "site")
+        (CACHE / "pyodide.asm.wasm").write_bytes(cast(Any, tar.extractfile("pyodide/pyodide.asm.wasm")).read())
+        (CACHE / "python_stdlib.zip").write_bytes(cast(Any, tar.extractfile("pyodide/python_stdlib.zip")).read())
+        zipfile.ZipFile(io.BytesIO(cast(Any, tar.extractfile(wheel)).read())).extractall(CACHE / "site")
     todo = [CACHE / "pyodide.asm.wasm"] + [
         p for p in (CACHE / "site").rglob("*.so") if p.name.startswith(("_multiarray_umath", "_pocketfft_umath"))
     ]
@@ -92,19 +95,20 @@ cwd = ["/"]
 fdpath: dict[int, str] = {}
 dpos: dict[int, int] = {}
 calls: dict[str, int] = {}
-CUR: list = []  # the `Caller` of the host function that is running: wasmtime wants it for every access to the memory
+CUR: list[
+    Caller | Store
+] = []  # the `Caller` of the host function that is running: wasmtime wants it for every access to the memory
 
 
 class _Memory:
     """The memory of the guest, through the caller of the running host function."""
 
-    def __init__(self):
-        self.memory = None
+    memory: Memory  # set once the guest is instantiated
 
-    def read(self, addr, n):
-        return self.memory.read(CUR[-1], addr, addr + n)
+    def read(self, addr: int, n: int) -> bytes:
+        return bytes(self.memory.read(CUR[-1], addr, addr + n))
 
-    def write(self, addr, data):
+    def write(self, addr: int, data: bytes | bytearray | memoryview) -> None:
         self.memory.write(CUR[-1], bytes(data), addr)
 
 
@@ -345,7 +349,7 @@ def fd_close(fd):
 
 def fd_fdstat_get(fd, buf):
     st = os.fstat(fd) if fd > 2 else None
-    ft = 2 if fd <= 2 else 3 if ST.S_ISDIR(st.st_mode) else 4 if ST.S_ISREG(st.st_mode) else 0
+    ft = 2 if fd <= 2 or st is None else 3 if ST.S_ISDIR(st.st_mode) else 4 if ST.S_ISREG(st.st_mode) else 0
     MEM.write(buf, struct.pack("<BxHxxxxQQ", ft, 0, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF))
     return 0
 
@@ -382,12 +386,14 @@ import struct as _st
 
 from wasmtime import Tag, TagType
 
-LIBS = {}  # handle pointer -> lib; and by name
-LIBS_BY_NAME = {}
-SLOTS = {}
-LOADLOG = []
-EX = None
-ENGINE = None
+LIBS: dict[Any, Any] = {}  # handle pointer -> lib; and by name
+LIBS_BY_NAME: dict[str, Any] = {}
+SLOTS: dict[Any, int] = {}
+LOADLOG: list[str] = []
+EX: Any = None  # exports of the main module
+ENGINE: Any = None
+STORE0: Any = None
+TABLE: Any = None
 
 
 def slot_of(caller, key, func):
@@ -417,7 +423,7 @@ def parse_dylink(b):
             n, j = leb(i)
             if b[j : j + n] == b"dylink.0":
                 j += n
-                out = dict(memsize=0, memalign=0, tablesize=0, tablealign=0, needed=[])
+                out: dict[str, Any] = dict(memsize=0, memalign=0, tablesize=0, tablealign=0, needed=[])
                 while j < end:
                     sub = b[j]
                     j += 1
@@ -482,7 +488,7 @@ def dlopen_js(handle):
 
 
 def load_side_module(c, name, data):
-    info = parse_dylink(data)
+    info: Any = parse_dylink(data)
     module = Module(ENGINE, data)
     size, align = info["memsize"], 1 << info["memalign"]
     raw = EX["calloc"](c, size + align, 1) if size else 0
@@ -493,11 +499,12 @@ def load_side_module(c, name, data):
         TABLE.grow(c, tsize, Val.funcref(None))
     linker = Linker(ENGINE)
     own = {e.name for e in module.exports}
-    patch = []
+    patch: list[Any] = []
     i32 = ValType.i32()
-    cell = []
-    lib = dict(name=name, base=base, memsize=size, tbase=tbase, tsize=tsize, exports={}, missing=[])
+    cell: list[Any] = []
+    lib: dict[str, Any] = dict(name=name, base=base, memsize=size, tbase=tbase, tsize=tsize, exports={}, missing=[])
     for imp in module.imports:
+        assert imp.name is not None
         m, n, ty = imp.module, imp.name, imp.type
         if m == "env" and n == "memory":
             item = MEM.memory
@@ -676,8 +683,9 @@ def main():
     module = Module(engine, open(os.path.join(PYODIDE_DIR, "pyodide.asm.wasm"), "rb").read())
     store = Store(engine)
     linker = Linker(engine)
-    got = {}
+    got: dict[str, Global] = {}
     for imp in module.imports:
+        assert imp.name is not None
         if isinstance(imp.type, FuncType):
             fn = IMPL.get(imp.name) or stub(imp.name, imp.type)
             linker.define_func(imp.module, imp.name, imp.type, wrap(fn, len(imp.type.results)), access_caller=True)
@@ -685,16 +693,16 @@ def main():
             got[imp.name] = Global(store, GlobalType(ValType.i32(), True), Val.i32(0))
             linker.define(store, imp.module, imp.name, got[imp.name])
     instance = linker.instantiate(store, module)
-    ex = instance.exports(store)
+    ex: Any = instance.exports(store)
     global EX, ENGINE, STORE0
     STORE0 = store
     EX = ex
     ENGINE = engine
-    MEM.memory = ex["memory"]
+    MEM.memory = cast(Memory, ex["memory"])
     global TABLE
     TABLE = ex["__indirect_function_table"]
     CUR.append(store)
-    slots = {}
+    slots: dict[str, int] = {}
     for (
         name,
         g,
