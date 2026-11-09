@@ -453,12 +453,12 @@ not more. `wasmclang.py` on Bun stops with `panic: abort() called` and Bun's own
 WASI program); the file as it was before 2026-10-07 does the same. Pyodide's own `pyodide.asm.wasm` does not link on `wasm3` in any case: it imports
 280 globals, which our `wasm3` backend can't give, and uses `externref`. `jslinux.py` needs a server that the assistant's environment cannot reach.
 
-**Known problem: PyPy on macOS with the `jsc` backend.** On PyPy 3.11 (macOS, arm64) the `jsc` backend, the system JavaScriptCore through
+**Known problem: the `jsc` backend on macOS (PyPy, and CPython less often).** On PyPy 3.11 (macOS, arm64) the `jsc` backend, the system JavaScriptCore through
 `ctypes`, sometimes ends the process with a segmentation fault in `JSValueToStringCopy`. It happens when Python reads the memory of a
 module from inside a host function that the module itself called (for example `fd_write` of a WASI program, as in `coreutils.py`), so
-a run of the test suite hits it about once in ten to twenty-five repeats, with the JIT of JavaScriptCore on or off. It was not seen on
-CPython on macOS, on PyPy on Linux (WebKitGTK's JavaScriptCore, 30 repeats), or with any other backend. The cause is not known; on macOS use
-CPython for `jsc`, or another backend (`wasmtime`, `node`, `bun`) on PyPy. Details are in `BACKLOG.md`.
+a run of the test suite hits it about once in ten to twenty-five repeats, with the JIT of JavaScriptCore on or off. The same crash was also seen on CPython 3.10 and 3.15 on macOS (BACKLOG, 2026-10-16, 2026-10-18 and 2026-11-06, the last one in two attempts in a row of the same job); it was not seen on
+PyPy on Linux (WebKitGTK's JavaScriptCore, 30 repeats), or with any other backend. The cause is not known; on macOS use
+another backend (`wasmtime`, `node`, `bun`) where `jsc` crashes. Details are in `BACKLOG.md`.
 
 CoreMark built natively (C, `-O2`, not through wasmhost), as a baseline for the devices where iSH emulates the processor: **3169** (GCC 15.2.0, 60000
 iterations, 18.9 s, "Correct operation validated") on iSH-AOK 1.3 (557), Linux 5.10.0-ish_aok aarch64; **1590** (GCC 12.2.1, 20000 iterations, 12.6 s,
@@ -665,8 +665,10 @@ out of memory (MB/s) and the engine itself (a recursive
 | Pythonista 3, Python 3.10.4, iPhone 16 (iPhone17,3), iOS 26 (Darwin 25.6)      | `jscontext` (`objc_util`)          | **38/38**, a memory held by the maximum of an imported `Memory` and by `Instance(max_memory=)` (wasmhost 0.1.0b2.dev3)                                                                                                                                              | 36 / 83 us            |
 | Pythonista 3, Python 3.10.4, iPhone 16 (iPhone17,3), iOS 26 (Darwin 25.6)      | `jscontext` (`objc_util`)          | **41/41**, `wasmhost.wasi.preview1`: a WASI program of each snapshot (`wasi_snapshot_preview1` and `wasi_unstable`) with arguments, stdout, a file and an exit code; timeout and fuel "not available", as documented (wasmhost 0.1.0b3.dev14)                       | 47 / 111 us           |
 | Pythonista 3, Python 3.10.4, iPhone 16 (iPhone17,3), iOS 26 (Darwin 25.6)      | `jscontext` (`objc_util`)          | **41/41** after the rename to `wasmhost.wasi.preview1` (the wheel `0.1.0b3.dev20+gb9498e8f6`; the output does not print the version), and the examples `coreutils`, `coremark`, `imports`, `basic`, `jitcheck`, `jslinux`, `pyodide`, `wasi_sh` and `wasmclang` run | 37 / 94 us            |
+| Pythonista 3, Python 3.10.4, iPhone 16 (iPhone17,3), iOS 26 (Darwin 25.6) | `jsc` (the default; `objc_util: yes`, `rubicon.objc: no`) | **44/44**, bytes `via C API`, WASI 0.1 and WASI 0.2 steps and `for_module` (a build with S0005, so `main` at or after #26; the output does not print the version), both encodings of exceptions; several memories, timeout, fuel, memory view and isolated "not available", as documented | 11 / 24 us |
 | PythonIDE, Python 3.14.7, `ios-13.0-arm64-iphoneos`                            | `jscontext` (`objc_util`)          | **25/25**, bytes `via C API`, host functions (wasmhost 0.0.2b1)                                                                                                                                                                                                     | 39 / 77 us            |
 | PythonIDE, Python 3.14.7, `ios-13.0-arm64-iphoneos`                            | `jscontext` (`objc_util`)          | **41/41**, the same, WASI step included (wasmhost 0.1.0b3.dev14)                                                                                                                                                                                                    | 44 / 102 us           |
+| PythonIDE, Python 3.14.7, `ios-13.0-arm64-iphoneos` | `jsc` (the default; `objc_util: yes`, `rubicon.objc: no`) | **44/44**, the same steps as the Pythonista row above (WASI 0.1 and 0.2, `for_module`, both encodings of exceptions), on **wasmhost 0.2.0b1 from PyPI** (`pip install wasmhost==0.2.0b1`: it took `fusedwasi` 0.1.0b3 and found `h11` already there) | 10 / 19 us |
 | iSH-AOK 1.3 (557), a fork of iSH, Linux 5.10.0-ish_aok aarch64, CPython 3.14.8 | `wasmtime`                         | **34/34** (wasmhost 0.1.0b2, `uv tool install wasmhost --prerelease=allow --with wasmtime`; without `wasmtime` no backend starts there and the self-test says so)                                                                                                   | 1615 / 5500 us        |
 | iSH-AOK 1.3 (557), Linux 5.10.0-ish_aok aarch64, CPython 3.14.8                | `wasm3` (`WASMHOST_BACKEND=wasm3`) | **34/34**, wasmhost 0.1.0b2 (the memory steps pass: the 64-bit `wasm3` starts a memory at its initial size)                                                                                                                                                         | 213 / 1191 us         |
 | iSH (the original), Linux 4.20.69-ish i686, CPython 3.11.12                    | `wasm3`                            | 31/34, failed: the module's own `memory.grow`, `Instance(max_memory=)`, `type()` of a memory (`wasm3` starts a memory at its maximum there, see Backends); wasmhost 0.1.0b2                                                                                         | 571 / 3157 us         |
@@ -679,10 +681,12 @@ out of memory (MB/s) and the engine itself (a recursive
 | Linux, CPython 3.14t                                                           | `wasm3`                            | 29/29                                                                                                                                                                                                                                                               | 3 / 63 us             |
 | Linux, CPython 3.10 and PyPy 3.10                                              | `node`                             | 25/25 (an earlier version; and the test suite on 3.10)                                                                                                                                                                                                              |                       |
 
-Each count is that of the version the row was run on, and the self-test has grown since the older rows (it has 35 steps on
-`wasmtime` and `wasm3` now, and 41 on the JavaScript engines); the times are one run of the self-test each, so read them as an order of magnitude. A host function costs about
+Each count is that of the version the row was run on, and the self-test has grown since the older rows (it has 38 steps on
+`wasmtime` and `wasm3` now, and 44 on the JavaScript engines); the times are one run of the self-test each, so read them as an order of magnitude. A host function costs about
 what a call does, plus a round trip on `node` or `bun` (measured once: about 4 us on `wasm3`, 50 us on `wasmtime` and `jsc`,
 200 us on `node`, per host call including the export around it).
+
+The two newest rows (the owner, 2026-11-06) are the first where the default on the iPhone was `jsc` and not `jscontext` (`AUTO_ORDER` lists `jsc` before `jscontext`; why the older runs said `jscontext` was not looked at); the output of the Pythonista run has no version (the PythonIDE run installed 0.2.0b1).
 
 Host functions and the C API bytes path on `jscontext` have run on both iOS apps above; on Linux they also run
 against a fake `objc_util` whose `c` is the real JavaScriptCore library, and on macOS in CI against a real

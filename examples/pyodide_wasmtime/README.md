@@ -287,7 +287,10 @@ main()
 ```
 
 ## Not implemented
-- Only 28 of the module's 268 function imports are answered; the rest are stubs. Files are a temporary folder (no sandbox, `os.listdir("/")` is empty: no `getdents64`); no network, no `dlopen`/packages (numpy and the like).
+- Only 28 of the module's 268 function imports are answered; the rest are stubs. Files are a temporary folder (no sandbox, `os.listdir("/")` is empty: no `getdents64`); no network, no `dlopen` in this script (see NUMPY.md for a version with it).
 - The bridge to JavaScript (`js`, `pyodide.ffi`, `micropip`; about 130 imports) cannot exist without JS.
 - Possible with more work, not tried: more file calls, sockets, `dlopen` (a loader of this kind ran emscripten wheels in a different CPython build).
 - Only the exception paths of these programs were exercised after the conversion; the conversion is Binaryen's. Linux only, REPL tried through a pipe.
+
+## numpy
+A version with numpy and a `dlopen` written in Python: [NUMPY.md](NUMPY.md) (script: `pyodide_numpy.py`).

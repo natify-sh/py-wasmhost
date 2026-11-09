@@ -89,3 +89,17 @@ preview1); the loader (about 100 lines) is the same one as in `dl_loader.py`, wr
 pointer of the program defined into it). Result (wasmtime-py 49.0.0, Linux): `dlopen("side_libc.so")` gives memory base 275008 and `side_libc` calls the program's `printf`: `side printf: hello via real dlopen (21)`, exit code 0.
 What it can **not** do: the CPython of `python3.wasm` is a WASI 0.2 module (`wasi:*@0.2` imports), and wasmtime-py has no host for those on a core module: that part is what wasmhost's `Preview2` over fusedwasi gives.
 And `pyodide.asm.wasm` does not load on wasmtime (legacy exceptions).
+
+### numpy on our own CPython for wasm, on wasmtime-py alone (`run_cpython_numpy.py`, 2026-11-06)
+
+numpy 2.4.3 (the wheel `numpy-2.4.3-cp315-cp315-pyemscripten_2026_5_wasm32.whl` of Pyodide 315.0.0a2, built for Emscripten) runs on **our** CPython 3.15.0+dev for `wasm32-wasip1` (`examples/cpython/build.sh`, the commit it names), with wasmtime's own WASI and the loader in Python:
+`python run_cpython_numpy.py python.wasm SITE_DIR` gives the same answers as in Pyodide (`numpy 2.4.3 45`; the whole `docs/experiments/pyodide_nojs/numpy_check.py`: sum, mean, std, matmul, inv, sort, fft, `default_rng(42)`, lstsq), in 4 to 5 s with wasmtime-py 50.0.1. By hand, not in CI. The 13 extension modules load; no JavaScript.
+
+What it took, and what was found on the way (the wheel is made for Pyodide's runtime, not for ours, so each of these is something the main module had to give):
+* **A relink, 7 s** (`relink_numpy.sh`: the link line of the CPython build with the table and every symbol exported). numpy's modules import 283 names that the `python.wasm` did not export: 224 of libc, libm and the compiler-rt of long double (forced with `-u` and `--export-if-defined`; 220 exist, `__fpclassifyl`, `__signbitl`, `fiprintf` and the data `__wasm_lpad_context` are answered by the loader), and 29 of the C++ runtime.
+* **`strtold`**: wasi-libc's `strtold` aborts (`long_double_not_supported`) and `_multiarray_umath` calls it while it starts; linking `-lc-printscan-long-double` fixes it.
+* **`operator new` is really called** at start-up (`_Znwm`), so the C++ runtime is not only for exceptions: `cxx_shim_np.c` has real `new`/`delete`, a `__next_prime` and a `__hash_memory` for libc++'s containers, and stubs for the exception functions (nothing threw on the paths that were run). The exception tag `__cpp_exception` is a new tag that the loader makes and shares between the modules.
+* **Two modules (`_multiarray_umath`, `_pocketfft_umath`) have the old exception handling**, so they were converted with Binaryen as for Pyodide.
+* The wheel's file suffix is `.cpython-315-wasm32-emscripten.so`: a path hook adds it (as for msgpack). The wheel is for Python 3.15.0rc1 and ours is 3.15.0+dev of 2026-10-20; nothing broke, but that is no promise for the whole C API.
+
+Not tried: scipy, threads, a C++ exception that is really thrown (they are stubs: it would abort), the other engines, wasmhost (its API has no tags, so the two modules that import the exception tag can not be loaded through it), the network.
