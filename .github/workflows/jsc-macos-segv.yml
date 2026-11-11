@@ -162,7 +162,7 @@ jobs:
             echo
             grep -E "^==" logs/stress.log | sed 's/^/- /'
             echo "- iterations in the runs that finished: $iterations (a crashed run does not count its own)"
-            grep -E "CRASH|MISMATCH" logs/stress.log | sed 's/^/- /'
+            grep -E "CRASH|MISMATCH" logs/stress.log | sed 's/^/- /' || true # no crash is not a failed step
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect the macOS crash reports
