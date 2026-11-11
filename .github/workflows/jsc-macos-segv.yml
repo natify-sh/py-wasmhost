@@ -1,0 +1,113 @@
+name: jsc macOS segfault
+
+# A diagnostic, not a gate: it repeats the `jsc` step of Tests on macOS to measure how often the segmentation fault of BACKLOG
+# ("the `jsc` backend on macOS") happens and under which conditions. It never fails on a crash; the counts are in the summary of
+# each job, the logs and the macOS crash reports are the artifacts. It runs only by hand and on a push of the branch that
+# investigates this (and of this file), so it does not slow Tests.
+#
+# Variants (the same suite, the same step as in Tests, repeated):
+#   baseline: nothing changed. The rate to compare with.
+#   scribble: MallocScribble / MallocPreScribble: freed and new memory is filled with a pattern, so a use after free (a JavaScriptCore
+#             value or a string that Python released too early) crashes at once and near the cause, not by luck.
+#   nogc:     gc.disable() before the tests: if the crashes go away, a ctypes object freed by the garbage collector in the middle of
+#             a call is the cause.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repeats:
+        description: "Repeats of the suite in each job"
+        default: "15"
+  push:
+    branches: [investigate-jsc-macos-segv]
+    paths: [".github/workflows/jsc-macos-segv.yml"]
+
+concurrency:
+  group: jsc-segv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  repeat:
+    name: ${{ matrix.variant }} / ${{ matrix.python-version }}
+    runs-on: macos-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [baseline, scribble, nogc]
+        python-version: ["3.10"]
+    defaults:
+      run:
+        shell: bash
+    env:
+      REPEATS: ${{ github.event.inputs.repeats || '15' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # setuptools_scm needs tags for the package version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Repeat the jsc step
+        env:
+          VARIANT: ${{ matrix.variant }}
+          PYTHONFAULTHANDLER: "1"
+        run: |
+          mkdir -p logs
+          case "$VARIANT" in
+            scribble) export MallocScribble=1 MallocPreScribble=1 ;;
+          esac
+          crashes=0
+          for i in $(seq 1 "$REPEATS"); do
+            log="logs/$VARIANT-$i.log"
+            set +e
+            if [ "$VARIANT" = nogc ]; then
+              uv run --locked python -X faulthandler -c "import gc, sys, pytest; gc.disable(); sys.exit(pytest.main(['-v', '-rs', '--wasm-backend', 'jsc']))" > "$log" 2>&1
+            else
+              uv run --locked pytest -v -rs --wasm-backend jsc > "$log" 2>&1
+            fi
+            code=$?
+            set -e
+            if grep -q "Fatal Python error: Segmentation fault" "$log"; then
+              crashes=$((crashes + 1))
+              echo "repeat $i: SEGFAULT (exit $code); last test line: $(grep -E '^tests/.*::' "$log" | tail -1)"
+            else
+              echo "repeat $i: exit $code"
+            fi
+          done
+          {
+            echo "### $VARIANT on Python ${{ matrix.python-version }}: $crashes segfaults in $REPEATS repeats"
+            echo
+            echo "Where they stopped (the last test line of each crashed log):"
+            for log in logs/*.log; do
+              if grep -q "Fatal Python error: Segmentation fault" "$log"; then
+                echo "- \`$log\`: $(grep -E '^tests/.*::' "$log" | tail -1)"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "crashes=$crashes" >> "$GITHUB_ENV"
+
+      - name: Collect the macOS crash reports
+        if: ${{ always() }}
+        run: |
+          mkdir -p reports
+          cp ~/Library/Logs/DiagnosticReports/*.ips reports/ 2>/dev/null || true
+          ls reports | head -20
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: jsc-segv-${{ matrix.variant }}-${{ matrix.python-version }}
+          path: |
+            logs/
+            reports/
+          if-no-files-found: ignore
