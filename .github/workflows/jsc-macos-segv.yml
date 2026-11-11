@@ -114,12 +114,10 @@ jobs:
             reports/
           if-no-files-found: ignore
 
-  # The stress test of docs/experiments/jsc_gc_stress/stress.py: `CApi.evaluate` in a loop, no collector thread (the first run, 2026-11-11,
-  # crashed in 5 of 16 runs without one, and in 2 of 16 with it, at the same place as the crashes of Tests). The variants:
-  #   control:      as it is.
-  #   rooted:       the result of each evaluate is kept in a JavaScript array until it is text (the hypothesis of BACKLOG: a value that
-  #                 Python holds between the API call and JSValueProtect is freed by a collection). If it is right, this crashes less.
-  #   noconcurrent: JSC_useConcurrentGC=0 in the environment (if the system framework reads it): no collector thread of the engine.
+  # The stress test of docs/experiments/jsc_gc_stress/stress.py: `CApi.evaluate` in a loop, no thread of ours. Run 5 (2026-11-11):
+  # 17 crashes in 42.4 million calls of the old code, 1 in 20.6 million with the result rooted inside JavaScript. This run is the
+  # same loop on the same runners, with the code of this branch (`fixed`: `_capi.py` roots the results) and with the `_capi.py` of
+  # `origin/main` (`old`), so the two can be compared in one run.
   gc-stress:
     name: gc-stress ${{ matrix.variant }} / ${{ matrix.python-version }} / ${{ matrix.replica }}
     runs-on: macos-latest
@@ -127,7 +125,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [control, rooted] # noconcurrent (run 4) had no crash in 24 runs, as many as control would be expected to give
+        variant: [fixed, old]
         python-version: ["3.10", "3.15"]
         replica: [1, 2, 3, 4] # the same job four times: more iterations for a rare crash, in the same time
     defaults:
@@ -137,6 +135,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # setuptools_scm needs tags for the package version
+
+      - name: Take the _capi.py of main (old)
+        if: ${{ matrix.variant == 'old' }}
+        run: git checkout origin/main -- src/wasmhost/_capi.py
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -151,12 +153,7 @@ jobs:
           VARIANT: ${{ matrix.variant }}
         run: |
           mkdir -p logs reports
-          mode=control
-          case "$VARIANT" in
-            rooted) mode=rooted ;;
-            noconcurrent) export JSC_useConcurrentGC=0 ;;
-          esac
-          uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 12 --seconds 30 --scenario both --gc-thread off --variant "$mode" 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
+          uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 12 --seconds 30 --scenario both --gc-thread off --variant control 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
           {
             echo "### gc-stress $VARIANT on Python ${{ matrix.python-version }}, replica ${{ matrix.replica }}"
             echo
