@@ -5,7 +5,7 @@ name: jsc macOS segfault
 # each job, the logs and the macOS crash reports are the artifacts. It runs only by hand and on a push of the branch that
 # investigates this (and of this file), so it does not slow Tests.
 #
-# Variants (the same suite, the same step as in Tests, repeated):
+# Jobs: `repeat` (by hand) and `gc-stress` (docs/experiments/jsc_gc_stress). Variants of `repeat` (the same suite, the same step as in Tests, repeated):
 #   baseline: nothing changed. The rate to compare with.
 #   scribble: MallocScribble / MallocPreScribble: freed and new memory is filled with a pattern, so a use after free (a JavaScriptCore
 #             value or a string that Python released too early) crashes at once and near the cause, not by luck.
@@ -20,7 +20,7 @@ on:
         default: "15"
   push:
     branches: [investigate-jsc-macos-segv]
-    paths: [".github/workflows/jsc-macos-segv.yml"]
+    paths: [".github/workflows/jsc-macos-segv.yml", "docs/experiments/jsc_gc_stress/**"]
 
 concurrency:
   group: jsc-segv-${{ github.ref }}
@@ -31,6 +31,8 @@ permissions:
 
 jobs:
   repeat:
+    # By hand only: 45 repeats (baseline, scribble, nogc; run 1) gave no crash, so a push does not run it again.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     name: ${{ matrix.variant }} / ${{ matrix.python-version }}
     runs-on: macos-latest
     timeout-minutes: 150
@@ -107,6 +109,55 @@ jobs:
         if: ${{ always() }}
         with:
           name: jsc-segv-${{ matrix.variant }}-${{ matrix.python-version }}
+          path: |
+            logs/
+            reports/
+          if-no-files-found: ignore
+
+  # The stress test of docs/experiments/jsc_gc_stress/stress.py: a second thread asks JavaScriptCore for collections all the time
+  # while `CApi.evaluate` runs in a loop; the control (no collector thread) shows what a run without it looks like.
+  gc-stress:
+    name: gc-stress / ${{ matrix.python-version }}
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.15"]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # setuptools_scm needs tags for the package version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Stress (control first, then the collector thread)
+        run: |
+          mkdir -p logs reports
+          uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 8 --seconds 30 --scenario both --gc-thread both 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
+          {
+            echo "### gc-stress on Python ${{ matrix.python-version }}"
+            echo
+            grep -E "^==|CRASH|MISMATCH" logs/stress.log | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect the macOS crash reports
+        if: ${{ always() }}
+        run: cp ~/Library/Logs/DiagnosticReports/*.ips reports/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: jsc-gc-stress-${{ matrix.python-version }}
           path: |
             logs/
             reports/
