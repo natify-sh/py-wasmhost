@@ -93,7 +93,7 @@ And `pyodide.asm.wasm` does not load on wasmtime (legacy exceptions).
 ### numpy on our own CPython for wasm, on wasmtime-py alone (`run_cpython_numpy.py`, 2026-11-06)
 
 numpy 2.4.3 (the wheel `numpy-2.4.3-cp315-cp315-pyemscripten_2026_5_wasm32.whl` of Pyodide 315.0.0a2, built for Emscripten) runs on **our** CPython 3.15.0+dev for `wasm32-wasip1` (`examples/cpython/build.sh`, the commit it names), with wasmtime's own WASI and the loader in Python:
-`python run_cpython_numpy.py python.wasm SITE_DIR` gives the same answers as in Pyodide (`numpy 2.4.3 45`; the whole `docs/experiments/pyodide_nojs/numpy_check.py`: sum, mean, std, matmul, inv, sort, fft, `default_rng(42)`, lstsq), in 4 to 5 s with wasmtime-py 50.0.1. By hand, not in CI. The 13 extension modules load; no JavaScript.
+`python run_cpython_numpy.py python.wasm SITE_DIR` gives the same answers as in Pyodide (`numpy 2.4.3 45`; the whole `docs/experiments/dlopen/numpy_check.py`: sum, mean, std, matmul, inv, sort, fft, `default_rng(42)`, lstsq), in 4 to 5 s with wasmtime-py 50.0.1. By hand, not in CI. The 13 extension modules load; no JavaScript.
 
 What it took, and what was found on the way (the wheel is made for Pyodide's runtime, not for ours, so each of these is something the main module had to give):
 * **A relink, 7 s** (`relink_numpy.sh`: the link line of the CPython build with the table and every symbol exported). numpy's modules import 283 names that the `python.wasm` did not export: 224 of libc, libm and the compiler-rt of long double (forced with `-u` and `--export-if-defined`; 220 exist, `__fpclassifyl`, `__signbitl`, `fiprintf` and the data `__wasm_lpad_context` are answered by the loader), and 29 of the C++ runtime.
