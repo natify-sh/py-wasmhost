@@ -60,6 +60,28 @@ def evaluate_rooted(api, src: str) -> str:
             c.JSStringRelease(pop)
 
 
+def evaluate_protect_first(api, src: str) -> str:
+    """`CApi.evaluate` as it was, with `JSValueProtect` called first after the engine returns (one call shorter window).
+
+    The cheap candidate: it keeps the fast script path, unlike the indirect `eval` of `evaluate_rooted`."""
+    c = api._c
+    ref = api.ref
+    script = api._string(src)
+    exception = ctypes.c_void_p()
+    value = c.JSEvaluateScript(ref, script, None, None, 1, ctypes.byref(exception))
+    held = exception.value or value
+    if held:
+        c.JSValueProtect(ref, held)
+    c.JSStringRelease(script)
+    try:
+        if exception.value:
+            raise RuntimeError(f"[JS] {api._text(ref, exception.value)}")
+        return api._text(ref, value)
+    finally:
+        if held:
+            c.JSValueUnprotect(ref, held)
+
+
 def worker(scenario: str, seconds: float, gc_thread: bool, variant: str) -> int:
     from wasmhost._capi import CApi, load_library
 
@@ -72,6 +94,8 @@ def worker(scenario: str, seconds: float, gc_thread: bool, variant: str) -> int:
     api = CApi(lib, ctx)
     if variant == "rooted":
         api.evaluate = lambda src: evaluate_rooted(api, src)  # type: ignore[method-assign]
+    elif variant == "protectfirst":
+        api.evaluate = lambda src: evaluate_protect_first(api, src)  # type: ignore[method-assign]
 
     stop = threading.Event()
     collections = [0]
@@ -117,7 +141,10 @@ def main() -> int:
     ap.add_argument("--scenario", choices=["evaluate", "nested", "both"], default="both")
     ap.add_argument("--gc-thread", choices=["on", "off", "both"], default="both")
     ap.add_argument(
-        "--variant", choices=["control", "rooted"], default="control", help="rooted: results kept in a JS array"
+        "--variant",
+        choices=["control", "rooted", "protectfirst"],
+        default="control",
+        help="rooted: results kept in a JS array",
     )
     ap.add_argument("--worker", choices=["on", "off"], help=argparse.SUPPRESS)
     args = ap.parse_args()
