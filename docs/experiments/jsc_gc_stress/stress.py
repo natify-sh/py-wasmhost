@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import json
+import re
 import subprocess
 import sys
 import threading
@@ -102,6 +103,8 @@ def worker(scenario: str, seconds: float, gc_thread: bool, variant: str) -> int:
             got = api.evaluate(f"host(String({i}))")
             mismatches += got != want
         done += 1
+        if done % 50000 == 0:
+            print(f"progress {done}", flush=True)  # a crashed run still tells how far it got
     stop.set()
     print(f"OK variant={variant} iterations={done} mismatches={mismatches} collections={collections[0]}", flush=True)
     return 1 if mismatches else 0
@@ -124,6 +127,7 @@ def main() -> int:
     exit_code = 0
     for mode in ("off", "on") if args.gc_thread == "both" else (args.gc_thread,):
         failed = 0
+        total = 0
         for run in range(1, args.runs + 1):
             proc = subprocess.run(
                 [sys.executable, "-X", "faulthandler", __file__, "--worker", mode, "--scenario", args.scenario]
@@ -131,7 +135,16 @@ def main() -> int:
                 capture_output=True,
                 text=True,
             )
-            last = (proc.stdout.strip().splitlines() or ["(no output)"])[-1]
+            lines = proc.stdout.strip().splitlines()
+            last = lines[-1] if lines else "(no output)"
+            found = re.search(r"iterations=(\d+)", last)
+            if found:
+                iterations = int(found.group(1))
+            else:  # a crashed run: the last progress line
+                progress = [int(ln.split()[1]) for ln in lines if ln.startswith("progress ")]
+                iterations = progress[-1] if progress else 0
+                last = f"after about {iterations} iterations"
+            total += iterations
             crashed = proc.returncode < 0 or "Fatal Python error" in proc.stderr
             bad = crashed or proc.returncode != 0
             failed += bad
@@ -141,7 +154,8 @@ def main() -> int:
                 tail = [ln for ln in proc.stderr.splitlines() if ln.strip()][:12]
                 print("    " + "\n    ".join(tail), flush=True)
         print(
-            f"== gc-thread={mode}: {failed} of {args.runs} runs failed ({args.scenario}, {args.seconds:g} s each)",
+            f"== gc-thread={mode}: {failed} of {args.runs} runs failed, total iterations {total} "
+            f"({args.scenario}, {args.seconds:g} s each)",
             flush=True,
         )
         exit_code |= failed > 0

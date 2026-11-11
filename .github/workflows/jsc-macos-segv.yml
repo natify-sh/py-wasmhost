@@ -121,14 +121,15 @@ jobs:
   #                 Python holds between the API call and JSValueProtect is freed by a collection). If it is right, this crashes less.
   #   noconcurrent: JSC_useConcurrentGC=0 in the environment (if the system framework reads it): no collector thread of the engine.
   gc-stress:
-    name: gc-stress ${{ matrix.variant }} / ${{ matrix.python-version }}
+    name: gc-stress ${{ matrix.variant }} / ${{ matrix.python-version }} / ${{ matrix.replica }}
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        variant: [control, rooted, noconcurrent]
+        variant: [control, rooted] # noconcurrent (run 4) had no crash in 24 runs, as many as control would be expected to give
         python-version: ["3.10", "3.15"]
+        replica: [1, 2, 3, 4] # the same job four times: more iterations for a rare crash, in the same time
     defaults:
       run:
         shell: bash
@@ -156,12 +157,10 @@ jobs:
             noconcurrent) export JSC_useConcurrentGC=0 ;;
           esac
           uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 12 --seconds 30 --scenario both --gc-thread off --variant "$mode" 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
-          iterations=$(awk '/ OK variant/ {for (i = 1; i <= NF; i++) if ($i ~ /^iterations=/) {split($i, a, "="); n += a[2]}} END {print n + 0}' logs/stress.log)
           {
-            echo "### gc-stress $VARIANT on Python ${{ matrix.python-version }}"
+            echo "### gc-stress $VARIANT on Python ${{ matrix.python-version }}, replica ${{ matrix.replica }}"
             echo
             grep -E "^==" logs/stress.log | sed 's/^/- /'
-            echo "- iterations in the runs that finished: $iterations (a crashed run does not count its own)"
             grep -E "CRASH|MISMATCH" logs/stress.log | sed 's/^/- /' || true # no crash is not a failed step
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -172,7 +171,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: jsc-gc-stress-${{ matrix.variant }}-${{ matrix.python-version }}
+          name: jsc-gc-stress-${{ matrix.variant }}-${{ matrix.python-version }}-${{ matrix.replica }}
           path: |
             logs/
             reports/
