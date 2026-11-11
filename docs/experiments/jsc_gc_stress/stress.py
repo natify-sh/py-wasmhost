@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import json
 import subprocess
 import sys
 import threading
@@ -27,7 +28,38 @@ import time
 _P = ctypes.c_void_p
 
 
-def worker(scenario: str, seconds: float, gc_thread: bool) -> int:
+def evaluate_rooted(api, src: str) -> str:
+    """`CApi.evaluate` with the result kept in a JavaScript array until it is text, so that no collection can free it.
+
+    The script pushes its own value into `globalThis.__wh_roots` before it returns; the pop comes after `_text`.
+    (An indirect `eval` gives the value of the last expression, as `JSEvaluateScript` does.) For the experiment only.
+    """
+    c = api._c
+    ref = api.ref
+    wrapped = (
+        "(function(){var r=(0,eval)("
+        + json.dumps(src)
+        + ");(globalThis.__wh_roots||(globalThis.__wh_roots=[])).push(r);return r})()"
+    )
+    script = api._string(wrapped)
+    exception = ctypes.c_void_p()
+    try:
+        value = c.JSEvaluateScript(ref, script, None, None, 1, ctypes.byref(exception))
+    finally:
+        c.JSStringRelease(script)
+    try:
+        if exception.value or not value:
+            raise RuntimeError("evaluate_rooted failed")
+        return api._text(ref, value)
+    finally:
+        pop = api._string("__wh_roots.pop()")
+        try:
+            c.JSEvaluateScript(ref, pop, None, None, 1, None)
+        finally:
+            c.JSStringRelease(pop)
+
+
+def worker(scenario: str, seconds: float, gc_thread: bool, variant: str) -> int:
     from wasmhost._capi import CApi, load_library
 
     lib = load_library()
@@ -37,6 +69,8 @@ def worker(scenario: str, seconds: float, gc_thread: bool) -> int:
     lib.JSGarbageCollect.argtypes = [_P]
     ctx = lib.JSGlobalContextCreate(None)
     api = CApi(lib, ctx)
+    if variant == "rooted":
+        api.evaluate = lambda src: evaluate_rooted(api, src)  # type: ignore[method-assign]
 
     stop = threading.Event()
     collections = [0]
@@ -69,7 +103,7 @@ def worker(scenario: str, seconds: float, gc_thread: bool) -> int:
             mismatches += got != want
         done += 1
     stop.set()
-    print(f"OK iterations={done} mismatches={mismatches} collections={collections[0]}", flush=True)
+    print(f"OK variant={variant} iterations={done} mismatches={mismatches} collections={collections[0]}", flush=True)
     return 1 if mismatches else 0
 
 
@@ -79,10 +113,13 @@ def main() -> int:
     ap.add_argument("--seconds", type=float, default=20)
     ap.add_argument("--scenario", choices=["evaluate", "nested", "both"], default="both")
     ap.add_argument("--gc-thread", choices=["on", "off", "both"], default="both")
+    ap.add_argument(
+        "--variant", choices=["control", "rooted"], default="control", help="rooted: results kept in a JS array"
+    )
     ap.add_argument("--worker", choices=["on", "off"], help=argparse.SUPPRESS)
     args = ap.parse_args()
     if args.worker:
-        return worker(args.scenario, args.seconds, args.worker == "on")
+        return worker(args.scenario, args.seconds, args.worker == "on", args.variant)
 
     exit_code = 0
     for mode in ("off", "on") if args.gc_thread == "both" else (args.gc_thread,):
@@ -90,7 +127,7 @@ def main() -> int:
         for run in range(1, args.runs + 1):
             proc = subprocess.run(
                 [sys.executable, "-X", "faulthandler", __file__, "--worker", mode, "--scenario", args.scenario]
-                + ["--seconds", str(args.seconds)],
+                + ["--seconds", str(args.seconds), "--variant", args.variant],
                 capture_output=True,
                 text=True,
             )

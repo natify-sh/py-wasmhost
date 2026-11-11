@@ -114,15 +114,20 @@ jobs:
             reports/
           if-no-files-found: ignore
 
-  # The stress test of docs/experiments/jsc_gc_stress/stress.py: a second thread asks JavaScriptCore for collections all the time
-  # while `CApi.evaluate` runs in a loop; the control (no collector thread) shows what a run without it looks like.
+  # The stress test of docs/experiments/jsc_gc_stress/stress.py: `CApi.evaluate` in a loop, no collector thread (the first run, 2026-11-11,
+  # crashed in 5 of 16 runs without one, and in 2 of 16 with it, at the same place as the crashes of Tests). The variants:
+  #   control:      as it is.
+  #   rooted:       the result of each evaluate is kept in a JavaScript array until it is text (the hypothesis of BACKLOG: a value that
+  #                 Python holds between the API call and JSValueProtect is freed by a collection). If it is right, this crashes less.
+  #   noconcurrent: JSC_useConcurrentGC=0 in the environment (if the system framework reads it): no collector thread of the engine.
   gc-stress:
-    name: gc-stress / ${{ matrix.python-version }}
+    name: gc-stress ${{ matrix.variant }} / ${{ matrix.python-version }}
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
+        variant: [control, rooted, noconcurrent]
         python-version: ["3.10", "3.15"]
     defaults:
       run:
@@ -140,14 +145,24 @@ jobs:
       - name: Install
         run: uv sync --locked
 
-      - name: Stress (control first, then the collector thread)
+      - name: Stress (no collector thread of ours)
+        env:
+          VARIANT: ${{ matrix.variant }}
         run: |
           mkdir -p logs reports
-          uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 8 --seconds 30 --scenario both --gc-thread both 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
+          mode=control
+          case "$VARIANT" in
+            rooted) mode=rooted ;;
+            noconcurrent) export JSC_useConcurrentGC=0 ;;
+          esac
+          uv run --locked python docs/experiments/jsc_gc_stress/stress.py --runs 12 --seconds 30 --scenario both --gc-thread off --variant "$mode" 2>&1 | tee logs/stress.log || true # a crash is a result, not a failed job
+          iterations=$(awk '/ OK variant/ {for (i = 1; i <= NF; i++) if ($i ~ /^iterations=/) {split($i, a, "="); n += a[2]}} END {print n + 0}' logs/stress.log)
           {
-            echo "### gc-stress on Python ${{ matrix.python-version }}"
+            echo "### gc-stress $VARIANT on Python ${{ matrix.python-version }}"
             echo
-            grep -E "^==|CRASH|MISMATCH" logs/stress.log | sed 's/^/- /'
+            grep -E "^==" logs/stress.log | sed 's/^/- /'
+            echo "- iterations in the runs that finished: $iterations (a crashed run does not count its own)"
+            grep -E "CRASH|MISMATCH" logs/stress.log | sed 's/^/- /'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect the macOS crash reports
@@ -157,7 +172,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: jsc-gc-stress-${{ matrix.python-version }}
+          name: jsc-gc-stress-${{ matrix.variant }}-${{ matrix.python-version }}
           path: |
             logs/
             reports/
