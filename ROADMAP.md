@@ -32,7 +32,7 @@ the engine and the WASI host are ours, the module stays as its authors built it.
 |---|---|---|
 | **B-604 / S0002** | GC types: the parser and the probes, then a model of references | an owner's need; the engines are not the obstacle |
 | **B-203, B-601, B-602, B-603 (memory64), B-605** | `externref` and `funcref` as values, exceptions in the API, SIMD values and shared memory, 64-bit memories, custom page sizes | the engines and a real module that needs them (SUPPORTS.md shows which engine has what) |
-| **B-612** | Pyodide's `pyodide.asm.wasm` run by a Python host with no JavaScript (an experiment, not a goal; a PoC on wasmtime-py and Node, not in CI) | the owner's decision and a spec |
+| **B-612** | Pyodide with no JavaScript: **moved** to [natify-sh/pyodide-wasmtime](https://github.com/natify-sh/pyodide-wasmtime) (2026-11-11) | nothing here |
 | **B-611** | native extensions of CPython on WASI: wasmhost as the dynamic loader (an experiment shows the wasm level works on wasmtime, node, bun; not wasm3) | the owner's decision and a spec; CPython was not relinked |
 | **B-303, B-701x** | batch read and write, Deno / a pure-Python interpreter / Android | nothing in principle |
 
@@ -43,7 +43,7 @@ the guide to components (B-608, `docs/COMPONENTS.md`) is written. What is still 
 
 - the **pull request** of the branch `docs-device-selftest-44` (device rows, the macOS `jsc` crash note, SUPPORTS.md from the CI of `e11ed0b`): pushed or local, not opened;
 - the two answers that S0002 (GC types) waits for: is the parser alone worth shipping, and what a GC reference in an export's signature should be for Python (refuse or an opaque handle);
-- whether B-611 and B-612 (experiments of what is possible) go further, and then a spec for either;
+- whether B-611 (an experiment of what is possible) goes further, and then a spec for it;
 - a decision on the **segmentation fault of the `jsc` backend on macOS** (BACKLOG): it failed twice in a row on `macos-latest / 3.10` in Tests run 314 and passed on the third attempt; the cause is not known;
 - the next release after `0.2.0b1`: the tag is the owner's.
 
