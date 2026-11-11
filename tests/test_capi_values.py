@@ -14,9 +14,9 @@ from wasmhost._capi import CApi, HostCallFailed, load_library  # pyright: ignore
 def api() -> Iterator[CApi]:
     try:
         lib = load_library()
-    except OSError as exc:
+        create, release = lib.JSGlobalContextCreate, lib.JSGlobalContextRelease
+    except (OSError, AttributeError) as exc:  # AttributeError: a library that is not JavaScriptCore (inside Pyodide)
         pytest.skip(f"no JavaScriptCore library: {exc}")
-    create, release = lib.JSGlobalContextCreate, lib.JSGlobalContextRelease
     create.restype, create.argtypes = ctypes.c_void_p, [ctypes.c_void_p]
     release.restype, release.argtypes = None, [ctypes.c_void_p]
     context = create(None)
