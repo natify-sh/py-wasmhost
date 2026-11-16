@@ -457,8 +457,10 @@ WASI program); the file as it was before 2026-10-07 does the same. Pyodide's own
 `ctypes`, sometimes ends the process with a segmentation fault in `JSValueToStringCopy`. It happens when Python reads the memory of a
 module from inside a host function that the module itself called (for example `fd_write` of a WASI program, as in `coreutils.py`), so
 a run of the test suite hits it about once in ten to twenty-five repeats, with the JIT of JavaScriptCore on or off. The same crash was also seen on CPython 3.10 and 3.15 on macOS (BACKLOG, 2026-10-16, 2026-10-18 and 2026-11-06, the last one in two attempts in a row of the same job); it was not seen on
-PyPy on Linux (WebKitGTK's JavaScriptCore, 30 repeats), or with any other backend. The cause is not known; on macOS use
-another backend (`wasmtime`, `node`, `bun`) where `jsc` crashes. Details are in `BACKLOG.md`.
+PyPy on Linux (WebKitGTK's JavaScriptCore, 30 repeats), or with any other backend. One cause was found and fixed: a value that `JSEvaluateScript` returned lived only in Python until it was
+protected, and the collector could free it there; it is now rooted inside the engine before it returns. That cut the crashes 3 to 5 times
+in CI, not to zero: the ones that remain are in the same place, on a value that is rooted, and their cause is not known. On macOS use
+another backend (`wasmtime`, `node`, `bun`) where `jsc` still crashes. Details are in `BACKLOG.md`.
 
 CoreMark built natively (C, `-O2`, not through wasmhost), as a baseline for the devices where iSH emulates the processor: **3169** (GCC 15.2.0, 60000
 iterations, 18.9 s, "Correct operation validated") on iSH-AOK 1.3 (557), Linux 5.10.0-ish_aok aarch64; **1590** (GCC 12.2.1, 20000 iterations, 12.6 s,
