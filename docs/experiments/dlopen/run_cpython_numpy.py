@@ -6,7 +6,7 @@ PYTHON_WASM is `python.wasm` of `examples/cpython/build.sh` **relinked** by `rel
 every symbol of the libc, libm and long double support that numpy's modules import, and has the small C++ runtime of `cxx_shim_np.c`).
 SITE_DIR is the unpacked wheel (numpy-2.4.3-cp315-cp315-pyemscripten_2026_5_wasm32.whl of Pyodide 315.0.0a2) whose `_multiarray_umath` and
 `_pocketfft_umath` went through `wasm-opt --all-features --disable-compact-imports --translate-to-exnref` (Binaryen: the old exception handling).
-WASI is wasmtime's own (preview1). The loader is the one of `run_pyodide_numpy.py`, with `dlopen`/`dlsym` as the imports of the program.
+WASI is wasmtime's own (preview1). The loader is the one of the Pyodide experiment (now natify-sh/pyodide-wasmtime; the old `run_pyodide_numpy.py` is in the history of wasmhost), with `dlopen`/`dlsym` as the imports of the program.
 By hand, not in CI: see README.md.
 """
 
