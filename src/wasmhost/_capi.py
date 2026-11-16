@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.util
+import json
 import sys
+from collections import deque
 from collections.abc import Callable
 from typing import Any
 
@@ -77,6 +79,8 @@ class CApi:
         self._c = lib
         self._context = context
         self._callbacks: list[Any] = []  # the ctypes thunks must outlive the functions made from them
+        self._returned: deque[Any] = deque()  # the last strings a thunk gave back, protected
+        self._runner_defined = False
 
     @property
     def ref(self) -> int:
@@ -117,27 +121,48 @@ class CApi:
 
     # --- evaluation ---
 
-    def evaluate(self, src: str) -> str:
-        """The value of the last expression as a string; a JavaScript exception is a RuntimeError("[JS] ...")."""
+    # Evaluates a source and puts the result (or the exception) in a ring of 16 slots before it returns.
+    _RUNNER = (
+        "globalThis.__wh_run=function(s){"
+        "var R=globalThis.__wh_roots||(globalThis.__wh_roots=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]),"
+        "n=globalThis.__wh_root_n=((globalThis.__wh_root_n|0)+1)&15,r;"
+        "try{r=(0,eval)(s)}catch(e){R[n]=e;throw e}R[n]=r;return r}"
+    )
+
+    def _run(self, src: str) -> tuple[Any, Any]:
+        """(value, exception) of `src`, both as JSValueRefs. A ref returned by the engine is only an integer in
+        Python, and the collector can free the value before it is protected (a crash in JSValueToStringCopy was seen
+        on macOS), so `__wh_run` stores the result, or the exception, in a ring of 16 slots in JavaScript before it
+        returns: it stays reachable for 16 more evaluations, with no second API call."""
         ref = self.ref
-        script = self._string(src)
+        if not self._runner_defined:
+            self._eval_and_forget(ref, self._RUNNER)
+            self._runner_defined = True
+        script = self._string(f"__wh_run({json.dumps(src)})")
         exception = ctypes.c_void_p()
         try:
             value = self._c.JSEvaluateScript(ref, script, None, None, 1, ctypes.byref(exception))
         finally:
             self._c.JSStringRelease(script)
-        # The engine's collector doesn't see a value held only in Python (PyPy moves and drops objects on its own
-        # schedule), so it is protected until it has been turned into text.
-        held = exception.value or value
-        if held:
-            self._c.JSValueProtect(ref, held)
+        return value, exception.value
+
+    def _eval_and_forget(self, ref: int, src: str) -> None:
+        script = self._string(src)
         try:
-            if exception.value:
-                raise RuntimeError(f"[JS] {self._text(ref, exception.value)}")
-            return self._text(ref, value)
+            self._c.JSEvaluateScript(ref, script, None, None, 1, None)
         finally:
-            if held:
-                self._c.JSValueUnprotect(ref, held)
+            self._c.JSStringRelease(script)
+
+    def evaluate(self, src: str) -> str:
+        """The value of the last expression as a string; a JavaScript exception is a RuntimeError("[JS] ...").
+
+        The source runs as an indirect `eval`: a top-level `let`, `const` or `class` is not visible to the next call
+        (`var`, function declarations and assignments to `globalThis` are)."""
+        ref = self.ref
+        value, exception = self._run(src)
+        if exception:
+            raise RuntimeError(f"[JS] {self._text(ref, exception)}")
+        return self._text(ref, value)
 
     # --- bytes ---
 
@@ -148,33 +173,26 @@ class CApi:
         ptr = array and self._c.JSObjectGetTypedArrayBytesPtr(ref, array, None)
         if not ptr:
             raise OSError("typed array allocation failed")
-        ctypes.memmove(ptr, data, len(data))
+        self._c.JSValueProtect(ref, array)
         js_name = self._string(name)
         try:
+            ctypes.memmove(ptr, data, len(data))
             self._c.JSObjectSetProperty(ref, self._c.JSContextGetGlobalObject(ref), js_name, array, 0, None)
         finally:
             self._c.JSStringRelease(js_name)
+            self._c.JSValueUnprotect(ref, array)
 
     def get_bytes(self, expr: str) -> bytes:
         """The bytes of the Uint8Array that `expr` evaluates to."""
         ref = self.ref
-        script = self._string(f"(b => b.byteOffset ? b.slice() : b)({expr})")
-        exception = ctypes.c_void_p()
-        try:
-            value = self._c.JSEvaluateScript(ref, script, None, None, 1, ctypes.byref(exception))
-        finally:
-            self._c.JSStringRelease(script)
-        if exception.value or not value:
+        value, exception = self._run(f"(b => b.byteOffset ? b.slice() : b)({expr})")
+        if exception or not value:
             raise OSError("JSEvaluateScript failed")
-        self._c.JSValueProtect(ref, value)
-        try:
-            array = self._c.JSValueToObject(ref, value, None)
-            ptr = array and self._c.JSObjectGetTypedArrayBytesPtr(ref, array, None)
-            if not ptr:
-                raise OSError("not a typed array")
-            return ctypes.string_at(ptr, self._c.JSObjectGetTypedArrayByteLength(ref, array, None))
-        finally:
-            self._c.JSValueUnprotect(ref, value)
+        array = self._c.JSValueToObject(ref, value, None)
+        ptr = array and self._c.JSObjectGetTypedArrayBytesPtr(ref, array, None)
+        if not ptr:
+            raise OSError("not a typed array")
+        return ctypes.string_at(ptr, self._c.JSObjectGetTypedArrayByteLength(ref, array, None))
 
     # --- a JavaScript function that calls Python ---
 
@@ -185,14 +203,23 @@ class CApi:
         ref = self.ref
         c = self._c
 
+        def give(context: Any, text: str) -> Any:
+            # Protected at once, so the collector can not take it before the engine has it; the last 8 stay protected.
+            value = self._make_string(context, text)
+            c.JSValueProtect(context, value)
+            self._returned.append(value)
+            if len(self._returned) > 8:
+                c.JSValueUnprotect(context, self._returned.popleft())
+            return value
+
         def thunk(context: Any, function: Any, this: Any, argc: int, argv: Any, exception: Any) -> Any:
             try:
                 args: list[Any] = []
                 for i in range(argc):
                     args.append(self._text(context, argv[i]))
-                return self._make_string(context, handler(args))
+                return give(context, handler(args))
             except BaseException:  # noqa: BLE001 -- see above
-                exception[0] = self._make_string(context, error)
+                exception[0] = give(context, error)
                 return c.JSValueMakeUndefined(context)
 
         callback = _CALLBACK(thunk)
