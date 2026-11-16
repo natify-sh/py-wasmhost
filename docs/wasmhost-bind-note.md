@@ -1,51 +1,35 @@
 ---
-title: wasmhost bind - a CLI entry that generates Python glue for C libraries compiled to core wasm modules
+title: wasmhost bind - a CLI entry that generates Python glue for C libraries compiled to core wasm modules, types from the module's own DWARF
 kind: note for the orchestrator of py-wasmhost
 status: idea from the maintainer (2026-11-16): a CLI entry in wasmhost itself; needs a spec before code
 date: 2026-11-16
 checked against: py-wasmhost main at da2c7a7
 ---
 
-# `wasmhost bind`: generated glue over wasmhost
+# `wasmhost bind`: generated glue over wasmhost, from the `.wasm` alone
 
 ## The idea (maintainer, 2026-11-16)
 
 The aim is something like cffi's out-of-line mode for C libraries compiled to WebAssembly, as **a
-command of wasmhost itself**, next to `wasmhost run` and `wasmhost bench` (the maintainer, 2026-11-16:
-not a separate package). Run on the developer's machine, it reads two inputs:
-* a **core** wasm module (no component model, no WIT);
-* the library's C header.
-
-It writes a plain Python module, the **glue**, that loads the `.wasm` through wasmhost and wraps
-its functions, structs and callbacks with C meaning: signedness, strings, pointers, struct fields.
+command of wasmhost itself**, next to `wasmhost run` and `wasmhost bench`. It reads **one input, a
+core wasm module** (no component model, no WIT), and writes a plain Python module, the **glue**.
+The glue loads the `.wasm` through wasmhost and wraps its functions, structs and callbacks with C
+meaning: signedness, strings, pointers, struct fields.
 
 ```
-wasmhost bind libfoo.wasm --header foo.h -o foo/
+wasmhost bind libfoo.wasm -o foo/
   -> foo/__init__.py    the glue: a Lib class, struct classes, callback helpers
   -> foo/__init__.pyi   types for pyright and IDEs
-  -> foo/libfoo.wasm
+  -> foo/libfoo.wasm    (or the stripped build given with --ship)
 ```
 
-The analogy is `dlopen` for `.so` against `waopen` for `.wasm`. The glue needs only wasmhost at run
-time: Python 3.10 and the standard library, as on Pythonista. The C parser and any DWARF reading
-are needed at generation time only.
+The analogy is `dlopen` for `.so` against `waopen` for `.wasm`. wasmhost already reads the binary in
+Python; `bind` reads it further. Its C types come from the module's own DWARF, so it needs:
+* no C parser;
+* no declarations written by hand;
+* no new dependency: it stays within the rule "`fusedwasi` and the standard library".
 
-### The dependency rule
-
-wasmhost depends only on `fusedwasi` and the standard library. A C parser does not fit that. The
-options:
-
-1. **An optional extra `wasmhost[bind]` with pycparser** (suggested). Without it, `wasmhost bind`
-   says which extra to install. This is the rule's pattern for engines, applied to a tool. It is an
-   extension of the rule: the owner decides.
-2. **wasmhost's own parser for a subset of C headers**, standard library only: prototypes,
-   `struct`, `typedef`, `enum`, fixed-width types. It covers most APIs; full C (macros, `#include`)
-   needs a preprocessor, and that is its cost.
-3. **Types from the module only**: DWARF read through `Module.customSections`, standard library
-   only. No header is needed, but a DWARF reader is larger than a C subset, and without `-g` there
-   are no types.
-
-Suggested: (1) first, (3) later as the fallback when there is no header.
+The glue needs only wasmhost at run time (Python 3.10, standard library; Pythonista).
 
 ### Why not WIT / `wasmtime bindgen`
 
@@ -56,17 +40,51 @@ existing C APIs are made of:
 * unions, bit fields and self-referential structs;
 * varargs and control of memory layout.
 
-The canonical ABI also copies strings and lists. `bind` keeps the C ABI as it is (clang's wasm32
-C ABI, WebAssembly tool-conventions "BasicCABI").
+The canonical ABI also copies strings and lists. `bind` keeps the C ABI as it is (clang's wasm32 C
+ABI, WebAssembly tool-conventions "BasicCABI").
+
+## Where the types come from
+
+**From the wasm sections**, which `_binary.py` already reads:
+* which functions are exported, under which names (`export_name` may differ from the C name);
+* the imports (C calling Python);
+* each `FuncType`, against which the DWARF types are checked;
+* `memory`, `malloc`/`free`, `__indirect_function_table`, `_initialize`.
+
+**From DWARF** (`clang -g`: `.debug_info`, `.debug_abbrev`, `.debug_str` and, for DWARF 5,
+`.debug_str_offsets`), read through `Module.customSections(module, name)`:
+* the exact C types of each function's parameters and result, `typedef` names included
+  (`uint32_t`, `size_t`), signedness, pointers, `const char *`;
+* **structs with the offsets, size and alignment clang computed** (`DW_AT_data_member_location`,
+  `DW_AT_byte_size`). The wasm32 layout rules do not have to be reproduced;
+* `enum` with the names of its values, `union`, bit fields;
+* function-pointer types with their signatures (callbacks);
+* parameter names, so the glue reads like the header: `def parse(self, s: bytes, n: int) -> int`.
+
+**The reader.** A DWARF reader in the standard library: the abbreviation table, DIEs, LEB128, the
+forms, and strings from `.debug_str`. Only types are needed: no line tables, locations or
+expressions. That is a few hundred lines. Rough estimate; the spec should bound it.
+
+**Generate from a debug build, ship a stripped one.**
+* `bind` runs on the developer's machine on `libfoo.wasm` built with `-g`. The wheel ships the
+  `wasm-strip` / `llvm-strip` version.
+* `-g` does not change code at the same `-O`. To be checked in the spec's tests: compare the code
+  sections of both builds.
+* The glue can record a hash of the code section, so that `Lib()` checks it loads the module it
+  was generated for.
+
+**Without DWARF**:
+* the **raw mode** still works from `FuncType` alone (ints and floats, as wasmhost calls functions
+  today);
+* for someone else's module with no DWARF, **declarations in Python** (the same `CType` /
+  `CFuncType` objects below) are the fallback input: `--decl decl.py`.
 
 ## What wasmhost already gives (main at da2c7a7)
 
-Nothing has to change in wasmhost to start.
-
 | the glue needs | wasmhost has |
 |---|---|
-| export and import signatures, to check them against the header at generation time | `Module.exports(module)`, `Module.imports(module)` with `FuncType` |
-| types from the module itself when there is no header | `Module.customSections(module, name)`: a custom section the build adds, or DWARF (`.debug_info`) from `clang -g` |
+| export and import signatures, checked against DWARF at generation time | `Module.exports(module)`, `Module.imports(module)` with `FuncType` |
+| DWARF and any other custom section | `Module.customSections(module, name)` |
 | strings, buffers, struct fields | `memory.read` / `memory.write` everywhere; `Memory.view(offset, length)` with no copy on wasmtime and wasm3 |
 | function pointers (callbacks) | `Table.set(i, f)` / `grow(n, f)` with a `Function`; a C function pointer is an index into `__indirect_function_table` |
 | C calling Python | host functions in the import object |
@@ -79,27 +97,30 @@ wasmtime and wasm3 a batch runs in Python and costs nothing extra.
 
 ## The model, in wasmhost's own shape
 
-The command and the glue use their own C types, shaped like wasmhost's:
+The command and the glue use C types shaped like wasmhost's. DWARF is read into them; `--decl`
+writes them by hand.
 
 * **`CType(str)`, like `ValueType`.** The type equals its name and its `repr` is the bare name.
   Each type carries:
-  * its wasm type at the boundary (`u8`/`u32`/`ptr`/`cstr` are `i32`; `i64`/`u64` are `i64`);
-  * its size and alignment in wasm32 (a pointer and a `long` are 4 bytes);
+  * its wasm type at the boundary (`uint8`/`uint32`/pointers/`cstr` are `i32`; `int64`/`uint64`
+    are `i64`);
+  * its size and alignment (from DWARF);
   * its conversion (unsigned results, `cstr` copied in and out of memory).
 
-  The C names should not shadow wasmhost's `i32`/`i64`/`f32`/`f64`: put them in their own
-  namespace or use C's names.
+  Use C's names (`int32`, `uint32`, `float`, `double`), so they do not shadow wasmhost's
+  `i32`/`i64`/`f32`/`f64`.
 * **`CFuncType(parameters, results)`, like `FuncType`.** `lower()` gives the `FuncType` and is
   checked against the module's export or import type, both directions:
   * exports: Python calls C;
   * imports: C calls Python.
-  A mismatch is an error of the generator, not of a call.
+
+  A mismatch between DWARF (or a declaration) and the module is an error of `bind`, not of a call.
 * **Values stay `int` and `float`.** A pointer is an `int` offset. Struct access goes through a
   view on memory at an offset (`struct.unpack_from` / `pack_into` on `Memory.view`, or a copy
   through `read` on engines without a view), not a wrapper value type. This follows the rule
   "no wrapper value types".
 * **C globals** (`extern int counter;`) live in linear memory. An exported data symbol is a wasm
-  global holding its address.
+  global holding its address; DWARF gives its type.
 
 ### Conventions the module must follow (to document for users)
 
@@ -109,7 +130,9 @@ The command and the glue use their own C types, shaped like wasmhost's:
 * `memory` exported;
 * `malloc` and `free` exported when the glue must allocate;
 * `__indirect_function_table` exported when the library takes callbacks;
-* WASI imports answered by wasmhost's `Preview1` when the library uses libc I/O.
+* WASI imports answered by wasmhost's `Preview1` when the library uses libc I/O;
+* built with `-g` for `bind`. DWARF 4 and 5 both appear in practice; the spec says which `bind`
+  reads first.
 
 ### WASI auto-detection (theoretical, not a goal of a first version)
 
@@ -127,8 +150,8 @@ use the same check at generation time and then:
 
 Unchecked: whether a library built with only a few WASI imports (for example `fd_write` for
 `printf`) is better served by a minimal host function than by a whole `Preview1`; and how a
-detection should treat a module that imports WASI 0.1 and 0.2 at once. A mismatch is an error of the
-generator, as for the C types.
+detection should treat a module that imports WASI 0.1 and 0.2 at once. A mismatch is an error of
+`bind`, as for the C types.
 
 ## What is missing in wasmhost (does not block a first version)
 
@@ -138,15 +161,31 @@ generator, as for the C types.
   batch this is acceptable.
 * **GC types** (S0002, draft). Not needed for C: C data lives in linear memory.
 
+## For the spec (`docs/specs/S0006-...`, approved before code)
+
+* **The command line:** `wasmhost bind MODULE -o DIR`, `--ship STRIPPED.wasm`, `--decl FILE`,
+  and what is bound (every exported function DWARF describes, or a list).
+* **The generated module's API:** `Lib(imports=..., backend=...)`, methods, struct classes, the
+  callback helper, errors.
+* **The DWARF subset read:** versions, forms, and the type tags (`base_type`, `pointer_type`,
+  `const_type`, `typedef`, `structure_type`, `union_type`, `enumeration_type`, `subroutine_type`,
+  `array_type`, `member`, `subprogram`, `formal_parameter`). Anything else is reported, not
+  guessed.
+* **Tests:**
+  * a small C library built with wasi-sdk in CI;
+  * its glue generated and run on every backend that can;
+  * `-g` against stripped code identity;
+  * a DWARF/`FuncType` mismatch refused.
+* **The self-test:** whether a step for the glue's run time belongs on the device (the
+  generation itself does not run there).
+* **README and BACKLOG** entries; SUPPORTS.md is not affected (no new engine feature).
+
 ## Questions for the owner
 
-1. **The dependency rule** (above): the extra `wasmhost[bind]` with pycparser, an own C subset
-   parser, or DWARF only.
-2. **The spec.** `wasmhost bind` is a new capability, so it needs `docs/specs/S0006-...` approved
-   before code. In the spec: the command line, the generated module's API, the type model, the
-   module conventions, the tests (a small C library built with wasi-sdk in CI, its glue run on
-   every backend) and a self-test step if the glue's run time belongs on the device.
-3. **`externref` in wasmhost.** Whether it gets its own spec. `bind` needs it only for
+1. **The first DWARF version** to read: DWARF 5 (current clang default) only, or 4 and 5.
+2. **Struct access:** classes with properties over `Memory.view` / `read` (suggested), or plain
+   functions per field.
+3. **`externref` in wasmhost:** whether it gets its own spec. `bind` needs it only for
    `__externref_t`, and it is useful on its own (JavaScript API parity).
 
 Another engine behind `Backend` (for example a pure-Python JIT) would serve the generated glue with
