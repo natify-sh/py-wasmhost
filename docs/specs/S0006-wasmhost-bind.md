@@ -85,7 +85,7 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 | jscontext | the glue's tests | expected to pass; check | |
 | pyodide | the glue's tests | not required | `bindgen` runs in CPython; the glue runs where wasmhost runs |
 
-`bindgen` runs wherever its `.wasm` is, the device included: the source of the glue is the ready module, not the source code, so generation on Pythonista is a requirement, not an option. Its cost (time and memory for a large DWARF section) is measured on a debug build on the device before the spec is approved. `pyelftools` is pure Python and is installed on the device the same way as wasmhost.
+`bindgen` runs wherever its `.wasm` is, the device included: the source of the glue is the ready module, not the source code, so generation on Pythonista is a requirement, not an option. The owner decided (2026-11-24) not to test on the device separately: CI is the check. The cost of the read on a large DWARF section on the device is not measured; it is a known, accepted risk. `pyelftools` is pure Python and is installed on the device the same way as wasmhost.
 
 ## Tests and probes
 * `tests/test_bind_dwarf.py`: the DWARF reader on a small set of hand-made `.debug_*` bytes and on real clang and rustc output (built in CI, see below); each tag read; a refused tag is reported.
@@ -109,11 +109,11 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 2. **Struct access: decided (owner, 2026-11-24): classes** with properties over `Memory.view` / `read`.
 3. **`externref`:** its own spec (S0007?), or left out. `bindgen` does not need it for C or Rust structs. Not answered yet.
 4. **Rust in the first version: decided (owner, 2026-11-24): yes.** Test languages of v1: C, Zig, Rust.
-5. **Where the tests run: decided (owner, 2026-11-24; the device run is part of the first version):** CI, and a device step for `bindgen` on Pythonista (a wheel and a script for the owner to run there). The device run is measured natively on the owner's iPhone 16, not in an emulator.
+5. **Where the tests run: decided (owner, 2026-11-24): CI only. No separate device step in v1; the owner expects it to work on Pythonista (native, iPhone 16), and the CI result is the check.**
 
 Decided by the owner (2026-11-24): the name is `bindgen`; `pyelftools` is a regular dependency (see "What does not change") and is the DWARF reader, so no own reader is written in v1.
 
-Before implementation: a spike (three small libraries in C, Zig and Rust built with `-g`, read through pyelftools, the DIEs and forms recorded, and the time and memory of the read on CPython and on the device). The spike decides whether the status of this spec moves from draft to approved.
+Before implementation: a spike (three small libraries in C, Zig and Rust built with `-g`, read through pyelftools, the DIEs and forms recorded, and the time and memory of the read on CPython and on CPython; the device is not part of the spike by the owner's decision). The spike decides whether the status of this spec moves from draft to approved.
 
 ## Changes
 2026-11-24: draft written from the research on `claude/wasmhost-bind-research`; no code.
