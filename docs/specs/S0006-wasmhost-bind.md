@@ -1,6 +1,6 @@
 # S0006: `wasmhost bindgen`, generated Python glue for a core wasm module
 
-Status: draft (2026-11-24, written on `claude/wasmhost-bind-research` from main `60ac793`; not read by the owner yet)
+Status: draft (2026-11-24, written on `claude/wasmhost-bind-research` from main `60ac793`; the owner's decisions are in Open questions; the spike comes before approval)
 Backlog: new item, to be numbered by the owner
 
 ## Goal
@@ -91,7 +91,7 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 * `tests/test_bind_dwarf.py`: the DWARF reader on a small set of hand-made `.debug_*` bytes and on real clang and rustc output (built in CI, see below); each tag read; a refused tag is reported.
 * `tests/test_bind_generate.py`: `wasmhost bindgen` on the two test libraries; the generated `__init__.py` imports and runs on every backend in the Matrix that is installed; struct fields; a callback; a cstr argument; a mismatch between DWARF and `--decl` is refused; `--ship` with a different export set is refused.
 * `tests/test_bind_debug_vs_strip.py`: the same source built with `-g` and stripped gives the same generated names, types and code hash.
-* test libraries: `tests/data/bind/c_lib.c` built with wasi-sdk (`-g -mexec-model=reactor`), `tests/data/bind/rust_lib/` built with `wasm32-wasip1` and `extern "C"`. Both built in CI, not checked in as binaries.
+* test libraries (the owner's decision: C, Zig and Rust in v1): `tests/data/bind/c_lib.c` built with wasi-sdk (`-g -mexec-model=reactor`), `tests/data/bind/zig_lib.zig` built with `zig build-lib -target wasm32-wasi` and `export fn`, `tests/data/bind/rust_lib/` built with `wasm32-wasip1` and `extern "C"`. All built in CI, not checked in as binaries.
 * **Self-test:** none for the generation (it does not run on the device). If the generated glue's runtime needs a step on the device, that is a second step, decided with the owner after the first version.
 * **Probe:** none in `tests/feature_probes.py` (no new engine feature). SUPPORTS.md is not changed.
 * CI jobs that must be green: Tests (on every OS and Python), Pre-commit, and a new job that builds the two test libraries and runs `bindgen` on them.
@@ -105,14 +105,17 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 * changes to the parser in `_binary.py` beyond what is needed to pass custom sections (none needed so far).
 
 ## Open questions
-1. **DWARF versions:** DWARF 5 only (current clang and rustc default), or 4 and 5 (suggested: 4 and 5, because the reader's cost is mostly in the forms, and older toolchains still appear).
-2. **Struct access:** classes with properties over `Memory.view` / `read` (proposed above), or plain functions per field.
-3. **`externref`:** its own spec (S0007?), or left out. `bindgen` does not need it for C or Rust structs.
-4. **Rust in the first version:** the Rust test library from the start (proposed), or C first.
-5. **Where the tests run:** CI, and a device step for `bindgen` on Pythonista (a wheel and a script for the owner to run there). The device step is required, see the Matrix note.
+1. **DWARF versions: decided (owner, 2026-11-24): 4 and 5.**
+2. **Struct access: decided (owner, 2026-11-24): classes** with properties over `Memory.view` / `read`.
+3. **`externref`:** its own spec (S0007?), or left out. `bindgen` does not need it for C or Rust structs. Not answered yet.
+4. **Rust in the first version: decided (owner, 2026-11-24): yes.** Test languages of v1: C, Zig, Rust.
+5. **Where the tests run: decided (owner, 2026-11-24; the device run is part of the first version):** CI, and a device step for `bindgen` on Pythonista (a wheel and a script for the owner to run there). The device run is measured natively on the owner's iPhone 16, not in an emulator.
 
 Decided by the owner (2026-11-24): the name is `bindgen`; `pyelftools` is a regular dependency (see "What does not change") and is the DWARF reader, so no own reader is written in v1.
 
+Before implementation: a spike (three small libraries in C, Zig and Rust built with `-g`, read through pyelftools, the DIEs and forms recorded, and the time and memory of the read on CPython and on the device). The spike decides whether the status of this spec moves from draft to approved.
+
 ## Changes
 2026-11-24: draft written from the research on `claude/wasmhost-bind-research`; no code.
-2026-11-24: the owner decided the name (`bindgen`) and the dependency (`pyelftools`, regular, pinned); CLAUDE.md changed to match. Still open for approval: questions 1, 2 and 4.
+2026-11-24: the owner decided the name (`bindgen`) and the dependency (`pyelftools`, regular, pinned); CLAUDE.md changed to match.
+2026-11-24: the owner decided DWARF 4 and 5, classes for structs, Rust in v1 with C and Zig; the device run is native on an iPhone 16. Open: question 3 (`externref`). The spike comes before the spec is approved.
