@@ -69,7 +69,7 @@ lib.close()
 ### What does not change
 * the public API of wasmhost; `bind` is a command and a generator, and the generated glue uses only the API that exists now (`Module`, `Instance`, `Memory`, `Table`, `Function`, `batch`);
 * `supports(...)` strings: none added; `bind` does not need a backend feature that is missing (see Matrix);
-* the dependency rule: no new dependency; the DWARF reader is in the standard library.
+* the dependency rule of CLAUDE.md changes for one thing: `pyelftools` becomes an **optional extra** of the package, `wasmhost[bind]`, imported only by the code of `bind`. Without the extra, wasmhost depends on `fusedwasi` (and its own dependencies) as before. The extra is accepted by the maintainer (2026-11-24); the owner's approval of the rule change is pending, and CLAUDE.md is not edited until it is given. The version of pyelftools is pinned in the extra.
 
 ## Matrix
 The glue runs on backends that have the features it uses. Rows are what must be true for the generated package's tests; "not run" means not run here and not in CI, and it is said as such in the report.
@@ -85,7 +85,7 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 | jscontext | the glue's tests | expected to pass; check | |
 | pyodide | the glue's tests | not required | `bind` runs in CPython; the glue runs where wasmhost runs |
 
-`bind` itself (generation) runs in CPython only; it is not on the device (Pythonista) in its first version, but the glue is.
+`bind` runs wherever its `.wasm` is, the device included: the source of the glue is the ready module, not the source code, so generation on Pythonista is a requirement, not an option. Its cost (time and memory for a large DWARF section) is measured on a debug build on the device before the spec is approved. The `pyelftools` extra is pure Python and is installed on the device the same way as wasmhost.
 
 ## Tests and probes
 * `tests/test_bind_dwarf.py`: the DWARF reader on a small set of hand-made `.debug_*` bytes and on real clang and rustc output (built in CI, see below); each tag read; a refused tag is reported.
@@ -110,7 +110,9 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 2. **Struct access:** classes with properties over `Memory.view` / `read` (proposed above), or plain functions per field.
 3. **`externref`:** its own spec (S0007?), or left out. `bind` does not need it for C or Rust structs.
 4. **Rust in the first version:** the Rust test library from the start (proposed), or C first.
-5. **Where the glue's tests run:** only CI, or also a self-test step on the device (proposed: CI only for the first version).
+5. **Where the tests run:** CI, and a device step for `bind` on Pythonista (a wheel and a script for the owner to run there). The device step is required, see the Matrix note.
+7. **The dependency rule:** the owner approves `wasmhost[bind]` with `pyelftools` (pinned) as an optional extra, and CLAUDE.md is changed to say so. Until then, no code.
+8. **DWARF reader:** pyelftools (as decided in 7) or an own reader. Recorded here so that the choice is in the spec, not only in the chat.
 6. **Name:** `bind` as proposed, or `wasmhost gen`. The note uses `bind`.
 
 ## Changes
