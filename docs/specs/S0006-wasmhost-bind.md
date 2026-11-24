@@ -113,7 +113,7 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 
 Decided by the owner (2026-11-24): the name is `bindgen`; `pyelftools` is a regular dependency (see "What does not change") and is the DWARF reader, so no own reader is written in v1.
 
-Before implementation: a spike (three small libraries in C, Zig and Rust built with `-g`, read through pyelftools, the DIEs and forms recorded, and the time and memory of the read on CPython and on CPython; the device is not part of the spike by the owner's decision). The spike decides whether the status of this spec moves from draft to approved.
+Before implementation: a spike (three small libraries in C, Zig and Rust built with `-g`, read through pyelftools, the DIEs and forms recorded, and the time and memory of the read on CPython; the device is not part of the spike by the owner's decision). The spike decides whether the status of this spec moves from draft to approved.
 
 ## Changes
 2026-11-24: draft written from the research on `claude/wasmhost-bind-research`; no code.
