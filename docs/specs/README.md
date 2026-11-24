@@ -28,4 +28,4 @@ replaces it; the file names that one). An approved spec is changed in the spec f
 | [S0003](S0003-several-memories.md) | several memories of one instance, the prerequisite of S0001 (B-603) | implemented 2026-11-05 (CI green on `be18649`) |
 | [S0004](S0004-wasi-0.2-several-components.md) | WASI 0.2 of several components through meld's import map (B-606, path 2 of S0001) | implemented 2026-11-05 (CI green on `baef8b8`) |
 | [S0005](S0005-wasi-for-module.md) | `wasi.for_module`: one call that picks `Preview1` or `Preview2` from the module (B-606) | approved 2026-11-06 |
-| [S0006](S0006-wasmhost-bind.md) | `wasmhost bind`: generated Python glue for a core module, types from its DWARF (new backlog item) | draft 2026-11-24 |
+| [S0006](S0006-wasmhost-bind.md) | `wasmhost bindgen`: generated Python glue for a core module, types from its DWARF (new backlog item) | draft 2026-11-24 |
