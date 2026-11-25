@@ -1,6 +1,6 @@
 # S0006: `wasmhost bindgen`, generated Python glue for a core wasm module
 
-Status: draft (2026-11-24, written on `claude/wasmhost-bind-research` from main `60ac793`; the owner's decisions are in Open questions; the spike comes before approval)
+Status: approved 2026-11-25 (owner). Written 2026-11-24 on `claude/wasmhost-bind-research` from main `60ac793`; the spike (`docs/experiments/s0006_dwarf_spike/`) came before approval; implementation not started.
 Backlog: new item, to be numbered by the owner
 
 ## Goal
@@ -105,10 +105,10 @@ The glue runs on backends that have the features it uses. Rows are what must be 
 * changes to the parser in `_binary.py` beyond what is needed to pass custom sections (none needed so far).
 
 ## Open questions
-1. **DWARF versions: decided (owner, 2026-11-24): 4 and 5.**
+1. **DWARF versions: decided (owner, 2026-11-24): 4 and 5 for C and Zig; Rust on DWARF 4 only (owner, 2026-11-25).** Zig DWARF 5 was not measured by the spike (zig 0.17.1 has no flag found for it); the first implementation step settles it or reports it.
 2. **Struct access: decided (owner, 2026-11-24): classes** with properties over `Memory.view` / `read`.
 3. **`externref`:** its own spec (S0007?), or left out. `bindgen` does not need it for C or Rust structs. Not answered yet.
-4. **Rust in the first version: decided (owner, 2026-11-24): yes.** Test languages of v1: C, Zig, Rust.
+4. **Rust in the first version: decided (owner, 2026-11-24): yes, on DWARF 4 (owner, 2026-11-25).** Test languages of v1: C, Zig, Rust. The spike built Rust DWARF 5 only with `RUSTC_BOOTSTRAP=1`; CI does not use that flag.
 5. **Where the tests run: decided (owner, 2026-11-24): CI only. No separate device step in v1; the owner expects it to work on Pythonista (native, iPhone 16), and the CI result is the check.**
 
 Decided by the owner (2026-11-24): the name is `bindgen`; `pyelftools` is a regular dependency (see "What does not change") and is the DWARF reader, so no own reader is written in v1.
@@ -119,3 +119,4 @@ Before implementation: a spike (three small libraries in C, Zig and Rust built w
 2026-11-24: draft written from the research on `claude/wasmhost-bind-research`; no code.
 2026-11-24: the owner decided the name (`bindgen`) and the dependency (`pyelftools`, regular, pinned); CLAUDE.md changed to match.
 2026-11-24: the owner decided DWARF 4 and 5, classes for structs, Rust in v1 with C and Zig; the device run is native on an iPhone 16. Open: question 3 (`externref`). The spike comes before the spec is approved.
+2026-11-25: the owner approved the spec; Rust stays on DWARF 4. The spike is committed in `docs/experiments/s0006_dwarf_spike/` (measurement only): pyelftools 0.33 read C (DWARF 4, 5), Rust (4, 5) and Zig (4); CPython 3.13 read time 1.4-4.7 ms for 0.3-1.7 KB of `.debug_info`, 167 ms for 206 KB (Zig Debug). Not run: Zig DWARF 5, wasm32-wasip1 std builds, C++.
